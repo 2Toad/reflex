@@ -1,0 +1,13 @@
+.vscode
+.husky
+dist
+node_modules
+.editorconfig
+.eslintcache
+.gitattributes
+.gitignore
+.npmignore
+.nvmrc
+.prettierignore
+*.md
+LICENSE

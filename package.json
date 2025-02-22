@@ -1,0 +1,75 @@
+{
+  "name": "@2toad/reflex",
+  "version": "1.0.0",
+  "description": "A magic bag of JavaScript dice with full TypeScript support",
+  "homepage": "https://github.com/2Toad/reflex",
+  "author": "2Toad",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "clean": "npx rimraf dist",
+    "build": "npm run clean && npx tsc",
+    "local": "npm run clean && nodemon src/index.ts",
+    "test:watch": "npm run test -- --watch",
+    "test": "mocha -r ts-node/register tests/**/*.spec.ts",
+    "lint": "eslint . --cache",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "prepublishOnly": "npm run lint && npm test && npm run build",
+    "postinstall": "husky"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/2Toad/reflex.git"
+  },
+  "keywords": [
+    "reflex",
+    "reactive",
+    "computed",
+    "deep-reactive",
+    "state-management",
+    "typescript",
+    "framework-agnostic",
+    "zero-dependencies",
+    "reactivity",
+    "observable",
+    "proxy",
+    "subscription",
+    "batch-updates"
+  ],
+  "devDependencies": {
+    "@eslint/js": "^9.9.1",
+    "@types/chai": "^5.0.1",
+    "@types/eslint__js": "^8.42.3",
+    "@types/eslint-config-prettier": "^6.11.3",
+    "@types/eslint-plugin-security": "^3.0.0",
+    "@types/mocha": "^10.0.8",
+    "@types/node": "^22.5.2",
+    "@typescript-eslint/eslint-plugin": "^8.4.0",
+    "@typescript-eslint/parser": "^8.4.0",
+    "chai": "^5.2.0",
+    "eslint": "^9.9.1",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.1",
+    "eslint-plugin-security": "^3.0.1",
+    "globals": "^16.0.0",
+    "husky": "^9.1.5",
+    "lint-staged": "^15.2.10",
+    "mocha": "^11.1.0",
+    "nodemon": "^3.1.4",
+    "prettier": "^3.3.3",
+    "rimraf": "^6.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.4.0"
+  },
+  "overrides": {
+    "inflight": "^2.0.0",
+    "glob": "^9.0.0"
+  },
+  "lint-staged": {
+    "*.ts": "eslint --cache --fix",
+    "*": "prettier --write"
+  }
+}

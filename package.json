@@ -1,18 +1,38 @@
 {
   "name": "@2toad/reflex",
   "version": "1.0.0",
-  "description": "A magic bag of JavaScript dice with full TypeScript support",
+  "description": "A lightweight reactive state management library, with zero dependencies",
   "homepage": "https://github.com/2Toad/reflex",
   "author": "2Toad",
   "license": "MIT",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
   "scripts": {
     "clean": "npx rimraf dist",
-    "build": "npm run clean && npx tsc",
+    "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:types",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:types": "tsc -p tsconfig.types.json",
     "local": "npm run clean && nodemon src/index.ts",
-    "test:watch": "npm run test -- --watch",
+    "local:pack": "npm run build && npm pack",
     "test": "mocha -r ts-node/register tests/**/*.spec.ts",
+    "test:watch": "mocha -r ts-node/register --watch --watch-files tests --watch-extensions ts 'tests/**/*.spec.ts'",
+    "test:package": "./test-package.sh",
     "lint": "eslint . --cache",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",

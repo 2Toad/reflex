@@ -14,6 +14,7 @@ Thank you for wanting to contribute to the Reflex project. With your contributio
       1. `npm run lint:fix`
       2. `npm run format`
       3. `npm test`
+      4. `npm run test:package`
    2. Make sure your PR is targeting the correct branch (see Step 2.i)
    3. At the top of your PR description write: "Fixes #_n_". Where _n_ is the number of the Issue your PR is fixing (e.g., `Fixes #33`). This will tell GitHub to associate your PR with the Issue.
 
@@ -21,7 +22,7 @@ Thank you for wanting to contribute to the Reflex project. With your contributio
 
 ### Prerequisites
 
-- Node: [Node 20+](https://nodejs.org)
+- Node: [Node 22+](https://nodejs.org)
 
 ### Source Code
 
@@ -40,6 +41,17 @@ Start app in watch mode: `npm run local`
 - Check lint rules: `npm run lint`
 - Fix lint errors: `npm run lint:fix`
 - Fix formatting errors: `npm run format`
+
+#### Testing
+
+- Unit tests: `npm test`
+- Unit test development: `npm run test:watch`
+- Package tests: `npm run test:package`
+  - Builds and tests the package in both ESM and CommonJS environments
+  - Validates correct module loading and basic functionality
+  - Reports success/failure with detailed output
+  - Keeps test files on failure for debugging
+  - Provides cleanup option on completion
 
 ## Appendix
 

@@ -10,8 +10,8 @@ A lightweight, framework-agnostic reactive state management system with zero dep
 
 - 🪶 **Lightweight** - Zero dependencies, minimal implementation
 - 🎯 **Framework Agnostic** - Works with any JavaScript framework or vanilla JS
-- 📦 **TypeScript First** - Full type safety and excellent IDE support
 - 🧮 **Computed Values** - Derive state from other reactive values
+- 🔄 **Operators** - Essential reactive operators (map, filter, merge, combine, scan, debounce)
 - 🔄 **Async Support** - First-class support for async operations and middleware
 - 🧹 **Automatic Cleanup** - Prevents memory leaks
 - ⚡ **Efficient** - Only updates when values actually change
@@ -128,6 +128,7 @@ For more detailed information about specific features, please refer to the follo
 - [Computed Values](./docs/computed-values.md)
 - [Batch Operations](./docs/batch-operations.md)
 - [Memory Management](./docs/memory-management.md)
+- [Operators](./docs/operators.md)
 
 ## Contributing 🤝
 

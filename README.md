@@ -60,9 +60,9 @@ const total = computed([price, quantity], ([p, q]) => p * q);
 ### Complex Objects
 ```typescript
 const user = deepReflex({
-  initialValue: {
+  profile: {
     name: 'John',
-    preferences: { theme: 'dark' }
+    settings: { theme: 'dark' }
   }
 });
 ```

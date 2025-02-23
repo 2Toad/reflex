@@ -26,14 +26,14 @@ const user = deepReflex({
   }
 });
 
-// Automatically tracks nested changes
-user.setValue(prev => ({
-  ...prev,
-  profile: {
-    ...prev.profile,
-    settings: { theme: 'light' }
-  }
-}));
+// Direct property modification - automatically tracks nested changes
+user.value.profile.settings.theme = 'light'; // Triggers update
+
+// For multiple changes, use batch to trigger only one update
+user.batch(value => {
+  value.profile.name = 'Jane';
+  value.profile.settings.theme = 'dark';
+});
 ```
 
 ### Computed Values

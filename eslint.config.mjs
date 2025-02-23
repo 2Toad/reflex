@@ -7,7 +7,7 @@ import prettier from "eslint-config-prettier";
 export default [
   // ESLint processes configurations in order, with the last setting taking precedence
   { languageOptions: { globals: { ...globals.node } } },
-  { ignores: [".husky", "dist", "node_modules", "tests", ".eslintcache"] },
+  { ignores: [".husky", "dist", "node_modules", "playwright-report", "test-results", "tests", ".eslintcache"] },
   js.configs.recommended,
   ...ts.configs.recommended,
   security.configs.recommended,

@@ -2,6 +2,8 @@
 .husky
 dist
 node_modules
+playwright-report
+test-results
 .editorconfig
 .eslintcache
 .gitattributes

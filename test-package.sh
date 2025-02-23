@@ -119,7 +119,7 @@ else
     exit 1
 fi
 
-# Prompt for cleanup
+# Cleanup
 echo -e "\n\n🧹 Cleaning up test files..."
 rm -rf test-reflex
 rm -f *.tgz

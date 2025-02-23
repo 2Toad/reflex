@@ -1,7 +1,7 @@
 {
   "name": "@2toad/reflex",
   "version": "1.0.0",
-  "description": "A lightweight reactive state management library, with zero dependencies",
+  "description": "A simple approach to state management",
   "homepage": "https://github.com/2Toad/reflex",
   "author": "2Toad",
   "license": "MIT",

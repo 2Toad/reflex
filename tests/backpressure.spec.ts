@@ -115,7 +115,7 @@ describe("Backpressure Operators", () => {
   describe("buffer", () => {
     it("should buffer values for specified duration", (done) => {
       const source = reflex({ initialValue: 0 });
-      const buffered = buffer(source, 50); // Reduced from 100 to 50ms
+      const buffered = buffer(source, 20);
 
       const values: number[][] = [];
       cleanup.push(
@@ -134,7 +134,7 @@ describe("Backpressure Operators", () => {
       const timeoutId = setTimeout(() => {
         expect(values).to.deep.equal([[1, 2, 3]]);
         done();
-      }, 75); // Reduced from 150 to 75ms
+      }, 30);
 
       cleanup.push(() => clearTimeout(timeoutId));
     });
@@ -143,7 +143,7 @@ describe("Backpressure Operators", () => {
   describe("sample", () => {
     it("should sample values at specified interval", (done) => {
       const source = reflex({ initialValue: 0 });
-      const sampled = sample(source, 50); // Reduced from 100 to 50ms
+      const sampled = sample(source, 20);
 
       const values: number[] = [];
       cleanup.push(sampled.subscribe((value) => values.push(value)));
@@ -156,7 +156,7 @@ describe("Backpressure Operators", () => {
         expect(values.length).to.be.greaterThan(0);
         expect(values[values.length - 1]).to.equal(3);
         done();
-      }, 75); // Reduced from 150 to 75ms
+      }, 30);
 
       cleanup.push(() => clearTimeout(timeoutId));
     });
@@ -165,7 +165,7 @@ describe("Backpressure Operators", () => {
   describe("throttle", () => {
     it("should throttle values to specified duration", (done) => {
       const source = reflex({ initialValue: 0 });
-      const throttled = throttle(source, 25); // Reduced from 50 to 25ms
+      const throttled = throttle(source, 8);
 
       const values: number[] = [];
       cleanup.push(throttled.subscribe((value) => values.push(value)));
@@ -177,13 +177,13 @@ describe("Backpressure Operators", () => {
       const timeoutId1 = setTimeout(() => {
         source.setValue(2);
         source.setValue(3);
-      }, 15); // Reduced from 25 to 15ms
+      }, 4);
 
       // Check final values after throttle period
       const timeoutId2 = setTimeout(() => {
         expect(values).to.deep.equal([0, 1, 3]);
         done();
-      }, 100); // Reduced from 250 to 100ms
+      }, 30);
 
       cleanup.push(() => {
         clearTimeout(timeoutId1);

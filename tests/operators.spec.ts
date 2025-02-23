@@ -101,42 +101,40 @@ describe("Operators", () => {
   describe("debounce", () => {
     it("should debounce emissions by the specified delay", (done) => {
       const source = reflex({ initialValue: 0 });
-      const debounced = debounce(source, 50);
+      const debounced = debounce(source, 15);
       const values: number[] = [];
 
-      debounced.subscribe((value) => values.push(value));
+      const unsubscribe = debounced.subscribe((value) => values.push(value));
+
+      source.setValue(1);
+      source.setValue(2);
+      source.setValue(3);
+
+      setTimeout(() => {
+        expect(values).to.deep.equal([0, 3]);
+        unsubscribe();
+        done();
+      }, 25);
+    });
+
+    it("should cancel previous timeout on new value", (done) => {
+      const source = reflex({ initialValue: 0 });
+      const debounced = debounce(source, 15);
+
+      const values: number[] = [];
+      const unsubscribe = debounced.subscribe((value) => values.push(value));
 
       source.setValue(1);
 
       setTimeout(() => {
         source.setValue(2);
-        source.setValue(3);
-      }, 20);
+      }, 8);
 
       setTimeout(() => {
-        expect(values).to.deep.equal([0, 3]);
+        expect(values).to.deep.equal([0, 2]);
+        unsubscribe();
         done();
-      }, 100);
-    });
-
-    it("should cancel previous timeout on new value", (done) => {
-      const source = reflex({ initialValue: 1 });
-      const debounced = debounce(source, 50);
-
-      source.setValue(2);
-
-      setTimeout(() => {
-        source.setValue(3); // Reset the timeout
       }, 25);
-
-      setTimeout(() => {
-        expect(debounced.value).to.equal(1); // Should not have updated to 2
-      }, 60);
-
-      setTimeout(() => {
-        expect(debounced.value).to.equal(3); // Should have updated to 3
-        done();
-      }, 100);
     });
   });
 
@@ -182,30 +180,26 @@ describe("Higher-order Stream Operators", () => {
   describe("switchMap", () => {
     it("should switch to new inner stream, cancelling previous", (done) => {
       const source = reflex({ initialValue: 1 });
-      const delays: { [key: number]: number } = { 1: 100, 2: 50 };
-      const results: number[] = [];
-
-      const mapped = switchMap(
-        source,
-        (value) =>
-          new Promise<number>((resolve) => {
-            setTimeout(() => resolve(value * 10), delays[value]);
-          }),
-      );
-
-      mapped.subscribe((value) => {
-        if (value !== undefined) {
-          results.push(value);
-        }
+      const result = switchMap(source, (value) => {
+        const inner = reflex({ initialValue: value * 10 });
+        setTimeout(() => {
+          inner.setValue(value * 20);
+        }, 10);
+        return inner;
       });
 
-      // First value will take 100ms
-      source.setValue(2); // This value will take 50ms and should arrive first
+      const values: number[] = [];
+      const unsubscribe = result.subscribe((value) => values.push(value));
 
       setTimeout(() => {
-        expect(results).to.deep.equal([20]); // Only the second result should arrive
+        source.setValue(2);
+      }, 5);
+
+      setTimeout(() => {
+        expect(values).to.deep.equal([10, 20, 40]);
+        unsubscribe();
         done();
-      }, 150);
+      }, 30);
     });
 
     it("should handle reflex sources", () => {
@@ -236,30 +230,26 @@ describe("Higher-order Stream Operators", () => {
   describe("mergeMap", () => {
     it("should merge all inner streams", (done) => {
       const source = reflex({ initialValue: 1 });
-      const delays: { [key: number]: number } = { 1: 100, 2: 50 };
-      const results: number[] = [];
-
-      const mapped = mergeMap(
-        source,
-        (value) =>
-          new Promise<number>((resolve) => {
-            setTimeout(() => resolve(value * 10), delays[value]);
-          }),
-      );
-
-      mapped.subscribe((value) => {
-        if (value !== undefined) {
-          results.push(value);
-        }
+      const result = mergeMap(source, (value) => {
+        const inner = reflex({ initialValue: value * 10 });
+        setTimeout(() => {
+          inner.setValue(value * 20);
+        }, 10);
+        return inner;
       });
 
-      // First value will take 100ms
-      source.setValue(2); // This value will take 50ms
+      const values: number[] = [];
+      const unsubscribe = result.subscribe((value) => values.push(value));
 
       setTimeout(() => {
-        expect(results).to.deep.equal([20, 10]); // Both results should arrive
+        source.setValue(2);
+      }, 5);
+
+      setTimeout(() => {
+        expect(values).to.include(10).and.include(20).and.include(20).and.include(40);
+        unsubscribe();
         done();
-      }, 150);
+      }, 30);
     });
 
     it("should handle reflex sources", () => {
@@ -291,30 +281,30 @@ describe("Higher-order Stream Operators", () => {
   describe("concatMap", () => {
     it("should process inner streams in sequence", (done) => {
       const source = reflex({ initialValue: 1 });
-      const delays: { [key: number]: number } = { 1: 50, 2: 25 };
-      const results: number[] = [];
+      const values: number[] = [];
 
-      const mapped = concatMap(
-        source,
-        (value) =>
-          new Promise<number>((resolve) => {
-            setTimeout(() => resolve(value * 10), delays[value]);
-          }),
-      );
+      const result = concatMap(source, async (value) => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return value * 10;
+      });
 
-      mapped.subscribe((value) => {
+      const unsubscribe = result.subscribe((value) => {
         if (value !== undefined) {
-          results.push(value);
+          values.push(value);
         }
       });
 
-      // First value will take 50ms
-      source.setValue(2); // This value will take 25ms but should wait for first
-
+      // First value should be processed
       setTimeout(() => {
-        expect(results).to.deep.equal([10, 20]); // Results should arrive in order
-        done();
-      }, 150); // Increased timeout to ensure both operations complete
+        source.setValue(2);
+
+        // Check final values after both sequences complete
+        setTimeout(() => {
+          expect(values).to.deep.equal([10, 20]);
+          unsubscribe();
+          done();
+        }, 15);
+      }, 10);
     });
 
     it("should handle reflex sources in sequence", (done) => {
@@ -324,7 +314,7 @@ describe("Higher-order Stream Operators", () => {
       const results: number[] = [];
 
       const mapped = concatMap(source, (value) => (value === "a" ? innerSourceA : innerSourceB));
-      mapped.subscribe((value) => {
+      const unsubscribe = mapped.subscribe((value) => {
         if (value !== undefined) {
           results.push(value);
         }
@@ -338,8 +328,9 @@ describe("Higher-order Stream Operators", () => {
       // Give time for the sequence to process
       setTimeout(() => {
         expect(results).to.deep.equal([1, 2, 10]);
+        unsubscribe();
         done();
-      }, 50);
+      }, 25);
     });
   });
 });

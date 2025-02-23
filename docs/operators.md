@@ -185,6 +185,18 @@ input.setValue('hello');
 // After 300ms of no changes, debouncedInput will update to 'hello'
 ```
 
+## Backpressure Operators
+
+Reflex provides a comprehensive set of operators for handling backpressure - a mechanism for managing the flow of data when producers emit values faster than consumers can process them.
+
+The following operators are available:
+- `withBackpressure`: Adds backpressure handling with configurable strategies
+- `buffer`: Collects values over time windows
+- `sample`: Takes periodic snapshots
+- `throttle`: Limits emission rates
+
+For detailed documentation on backpressure handling, including strategies, examples, and best practices, see [Backpressure Handling](./backpressure.md).
+
 ## Error Handling Operators
 
 ### catchError

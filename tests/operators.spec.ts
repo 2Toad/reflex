@@ -100,18 +100,21 @@ describe("Operators", () => {
 
   describe("debounce", () => {
     it("should debounce emissions by the specified delay", (done) => {
-      const source = reflex({ initialValue: 1 });
+      const source = reflex({ initialValue: 0 });
       const debounced = debounce(source, 50);
-      expect(debounced.value).to.equal(1);
+      const values: number[] = [];
 
-      source.setValue(2);
-      expect(debounced.value).to.equal(1); // Not updated yet
+      debounced.subscribe((value) => values.push(value));
 
-      source.setValue(3);
-      expect(debounced.value).to.equal(1); // Still not updated
+      source.setValue(1);
 
       setTimeout(() => {
-        expect(debounced.value).to.equal(3); // Now updated to last value
+        source.setValue(2);
+        source.setValue(3);
+      }, 20);
+
+      setTimeout(() => {
+        expect(values).to.deep.equal([0, 3]);
         done();
       }, 100);
     });

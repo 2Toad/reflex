@@ -12,6 +12,7 @@ A lightweight, framework-agnostic reactive state management system with zero dep
 - 🎯 **Framework Agnostic** - Works with any JavaScript framework or vanilla JS
 - 🧮 **Computed Values** - Derive state from other reactive values
 - 🔄 **Operators** - Essential reactive operators (map, filter, merge, combine, scan, debounce)
+- 🌊 **Backpressure** - Advanced flow control operators with pause/resume capabilities (buffer, sample, throttle)
 - 🔄 **Async Support** - First-class support for async operations and middleware
 - 🧹 **Automatic Cleanup** - Prevents memory leaks
 - ⚡ **Efficient** - Only updates when values actually change
@@ -129,6 +130,7 @@ For more detailed information about specific features, please refer to the follo
 - [Batch Operations](./docs/batch-operations.md)
 - [Memory Management](./docs/memory-management.md)
 - [Operators](./docs/operators.md)
+- [Backpressure Operators](./docs/backpressure.md)
 
 ## Contributing 🤝
 

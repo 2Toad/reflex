@@ -103,3 +103,45 @@ export type DependencyValues<T extends Reflex<unknown>[]> = {
 export interface ReflexWithError<T> extends Reflex<T> {
   _errorState?: Reflex<Error | null>;
 }
+
+/**
+ * Represents strategies for handling backpressure situations
+ */
+export enum BackpressureStrategy {
+  /** Discards new values when the system is overwhelmed */
+  Drop = "drop",
+  /** Stores values up to a limit for later processing */
+  Buffer = "buffer",
+  /** Maintains a fixed-size window of most recent values */
+  Sliding = "sliding",
+  /** Throws an error when capacity is exceeded */
+  Error = "error",
+}
+
+/**
+ * Options for configuring backpressure behavior
+ */
+export interface BackpressureOptions {
+  /** The strategy to use for handling backpressure */
+  strategy: BackpressureStrategy;
+  /** The buffer size when using buffer or sliding strategies */
+  bufferSize?: number;
+  /** Custom predicate to determine when to apply backpressure */
+  shouldApplyBackpressure?: () => boolean;
+}
+
+/**
+ * Interface for objects that implement backpressure control methods.
+ * This interface provides methods to control the flow of data by pausing/resuming emission
+ * and monitoring buffer state.
+ */
+export interface BackpressureCapable {
+  /** Request the producer to pause emission */
+  pause: () => void;
+  /** Request the producer to resume emission */
+  resume: () => void;
+  /** Check if the producer is currently paused */
+  isPaused: () => boolean;
+  /** Get the current buffer size (if applicable) */
+  getBufferSize: () => number;
+}

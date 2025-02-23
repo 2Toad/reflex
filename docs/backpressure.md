@@ -126,7 +126,7 @@ sampledPosition.subscribe(updateUI);
 Limits emission rate with intelligent value selection:
 
 1. Initial Phase: Always emits the initial value immediately
-2. Early Window Phase: Emits the first value in a new throttle window if it arrives early (within first half of the window)
+2. Early Window Phase: Emits the first value in a new throttle window if it arrives early (within first third of the window)
 3. Late Window Phase: Schedules the last value received during the throttle window for emission when the window ends
 
 ```typescript
@@ -136,8 +136,8 @@ const smoothScroll = throttle(scrollEvents, 100);
 // If scrollEvents emits: 0, 1, 2, 3, 4, 5 rapidly
 // smoothScroll will emit:
 // - 0 (initial value)
-// - 1 (first value in new window)
-// - 3 (last value in window)
+// - 1 (first in window)
+// - 3 (last in window)
 
 smoothScroll.subscribe(updateScrollIndicator);
 ```

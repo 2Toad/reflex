@@ -344,7 +344,7 @@ export function sample<T>(source: Reflex<T>, interval: number): Reflex<T> {
  * @returns A Reflex that emits throttled values
  */
 export function throttle<T>(source: Reflex<T>, duration: number): Reflex<T> {
-  const result = reflex<T>({
+  const result = reflex({
     initialValue: source.value,
   });
 
@@ -373,7 +373,7 @@ export function throttle<T>(source: Reflex<T>, duration: number): Reflex<T> {
   const scheduleNextEmission = (value: T) => {
     state.pendingValue = value;
     if (!state.timeoutId) {
-      const remainingTime = duration - (Date.now() - state.lastEmitTime);
+      const remainingTime = Math.max(0, duration - (Date.now() - state.lastEmitTime));
       state.timeoutId = setTimeout(() => {
         if (state.pendingValue !== null) {
           emitValue(state.pendingValue as T);
@@ -400,6 +400,7 @@ export function throttle<T>(source: Reflex<T>, duration: number): Reflex<T> {
     if (!state.sourceUnsubscribe) {
       state.sourceUnsubscribe = source.subscribe((value) => {
         const now = Date.now();
+        const timeSinceLastEmit = now - state.lastEmitTime;
 
         // Always emit the initial value
         if (!state.isInitialized) {
@@ -409,13 +410,14 @@ export function throttle<T>(source: Reflex<T>, duration: number): Reflex<T> {
         }
 
         // If outside throttle window, emit immediately
-        if (now - state.lastEmitTime >= duration) {
+        if (timeSinceLastEmit >= duration) {
           emitValue(value);
           return;
         }
 
-        // If this is the first value in a new throttle window, emit immediately
-        if (state.timeoutId === null && state.pendingValue === null && now - state.lastEmitTime < duration / 2) {
+        // If this is the first value in a new throttle window and we're in the early phase,
+        // emit immediately
+        if (!state.timeoutId && !state.pendingValue && timeSinceLastEmit < duration / 3) {
           emitValue(value);
           return;
         }

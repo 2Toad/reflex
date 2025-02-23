@@ -32,11 +32,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Build
-        run: npm run build
-
       - name: Unit Tests
         run: npm test
 
       - name: E2E Tests
         run: npm run test:e2e
+
+      - name: Package Tests
+        run: npm run test:package

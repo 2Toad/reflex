@@ -109,4 +109,4 @@ Deployments to Prod consist of building and publishing the Reflex lib to NPM, an
    - [x] **Set as the latest release**
 3. Click "Publish release".
 
-> This will trigger the [CDP](https://github.com/2Toad/reflex/actions/workflows/cdp.yml) workflow, which will build and deploy the package to NPM: https://www.npmjs.com/package/@2toad/reflex
+> This will trigger the [Continuous Delivery (CD)](https://github.com/2Toad/reflex/actions/workflows/cd.yml) workflow, which will build and deploy the package to NPM: https://www.npmjs.com/package/@2toad/reflex

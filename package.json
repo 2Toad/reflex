@@ -32,15 +32,16 @@
     "local:pack": "npm run build && npm pack",
     "test": "mocha -r ts-node/register tests/unit/*.spec.ts",
     "test:watch": "mocha -r ts-node/register --watch --watch-files tests --watch-extensions ts 'tests/unit/*.spec.ts'",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
     "test:package": "./test-package.sh",
+    "test:all": "npm run test && npm run test:e2e && npm run test:package",
     "lint": "eslint . --cache",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
-    "prepublishOnly": "npm run lint && npm test && npm run build",
-    "postinstall": "husky",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:debug": "playwright test --debug"
+    "prepublishOnly": "npm run lint && npm run build && npm test && npm run test:e2e",
+    "postinstall": "husky"
   },
   "repository": {
     "type": "git",

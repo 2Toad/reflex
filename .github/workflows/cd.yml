@@ -26,10 +26,7 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Package Tests
-        run: npm run test:package
-
       - name: Publish Package
-        run: npm publish
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}

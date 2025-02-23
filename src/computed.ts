@@ -1,43 +1,22 @@
-import { Reflex, Unsubscribe } from "./types";
+import { Reflex, Unsubscribe, DependencyValues } from "./types";
 import { reflex } from "./reflex";
-
-/**
- * Helper type to extract values from reactive dependencies
- */
-type DependencyValues<T extends Reflex<unknown>[]> = {
-  [K in keyof T]: T[K] extends Reflex<infer V> ? V : never;
-};
 
 /**
  * Creates a computed reactive value that depends on other reactive values.
  * The computed value automatically updates when any of its dependencies change.
  *
- * @example
- * ```typescript
- * const width = reflex({ initialValue: 5 });
- * const height = reflex({ initialValue: 10 });
- *
- * const area = computed(
- *   [width, height],
- *   ([w, h]) => w * h
- * );
- *
- * area.subscribe(value => console.log('Area changed:', value));
- * width.setValue(6); // Logs: Area changed: 60
- * ```
+ * @param dependencies - Array of reflex values this computation depends on
+ * @param compute - Function that computes the result from the current dependency values
+ * @returns A read-only reflex value that updates automatically when dependencies change
  */
 export function computed<TDeps extends Reflex<unknown>[], TResult>(
   dependencies: [...TDeps],
-  compute: (values: DependencyValues<TDeps>) => TResult,
+  compute: (values: DependencyValues<TDeps>) => TResult | Promise<TResult>,
 ): Reflex<TResult> {
-  let currentComputed: TResult;
-  try {
-    const depValues = dependencies.map((dep) => dep.value) as DependencyValues<TDeps>;
-    currentComputed = compute(depValues);
-  } catch (error) {
-    console.error("Error in compute function:", error);
-    currentComputed = undefined as TResult;
-  }
+  let isComputing = false;
+  let isAsync = false;
+  let currentComputed: TResult = undefined as TResult;
+  let computePromise: Promise<void> | null = null;
 
   // Create reactive for computed value
   const result = reflex<TResult>({
@@ -46,19 +25,54 @@ export function computed<TDeps extends Reflex<unknown>[], TResult>(
 
   let cleanups: Unsubscribe[] = [];
   let subscriptionCount = 0;
-  let isComputing = false;
 
-  const recompute = () => {
-    if (isComputing) return; // Prevent recursive computations
+  const recompute = async () => {
+    if (isComputing) {
+      if (computePromise) {
+        await computePromise;
+      }
+      return;
+    }
     isComputing = true;
 
     try {
       const depValues = dependencies.map((dep) => dep.value) as DependencyValues<TDeps>;
-      const newValue = compute(depValues);
-      result.setValue(newValue);
+
+      // Check if any dependency is undefined
+      if (depValues.some((v) => v === undefined)) {
+        currentComputed = undefined as TResult;
+        result.setValue(currentComputed);
+        isComputing = false;
+        return;
+      }
+
+      const computeResult = compute(depValues);
+
+      if (computeResult instanceof Promise) {
+        isAsync = true;
+        computePromise = computeResult
+          .then((value) => {
+            if (subscriptionCount > 0) {
+              // Only update if we still have subscribers
+              currentComputed = value;
+              result.setValue(value);
+            }
+          })
+          .catch((error) => {
+            console.error("Error in async compute function:", error);
+          })
+          .finally(() => {
+            isComputing = false;
+            computePromise = null;
+          });
+        await computePromise;
+      } else {
+        currentComputed = computeResult;
+        result.setValue(computeResult);
+        isComputing = false;
+      }
     } catch (error) {
       console.error("Error in compute function:", error);
-    } finally {
       isComputing = false;
     }
   };
@@ -76,16 +90,23 @@ export function computed<TDeps extends Reflex<unknown>[], TResult>(
         }
       }),
     );
+
+    // Initial computation
+    recompute();
   };
 
   // Override subscribe to manage dependency subscriptions
   const originalSubscribe = result.subscribe;
   return {
     get value() {
-      return result.value;
+      return currentComputed;
     },
 
     setValue() {
+      throw new Error("Cannot set the value of a computed reactive");
+    },
+
+    setValueAsync() {
       throw new Error("Cannot set the value of a computed reactive");
     },
 
@@ -107,9 +128,25 @@ export function computed<TDeps extends Reflex<unknown>[], TResult>(
     },
 
     batch<R>(updateFn: (value: TResult) => R): R {
-      // Since computed values can't be modified directly,
-      // we just execute the function with the current value
-      return updateFn(result.value);
+      if (isAsync) {
+        throw new Error("Cannot use sync batch on async computed value");
+      }
+      return updateFn(currentComputed);
+    },
+
+    async batchAsync<R>(updateFn: (value: TResult) => Promise<R> | R): Promise<R> {
+      if (computePromise) {
+        await computePromise;
+      }
+      return Promise.resolve(updateFn(currentComputed));
+    },
+
+    addMiddleware() {
+      throw new Error("Cannot add middleware to a computed reactive");
+    },
+
+    removeMiddleware() {
+      throw new Error("Cannot remove middleware from a computed reactive");
     },
   };
 }

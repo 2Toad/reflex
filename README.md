@@ -12,10 +12,13 @@ A lightweight, framework-agnostic reactive state management system with zero dep
 - 🎯 **Framework Agnostic** - Works with any JavaScript framework or vanilla JS
 - 📦 **TypeScript First** - Full type safety and excellent IDE support
 - 🧮 **Computed Values** - Derive state from other reactive values
+- 🔄 **Async Support** - First-class support for async operations and middleware
 - 🧹 **Automatic Cleanup** - Prevents memory leaks
 - ⚡ **Efficient** - Only updates when values actually change
 - 🔍 **Deep Reactivity** - Track changes in nested objects and arrays
 - 🛡️ **Safe** - Protection against recursive updates and error propagation
+- 🎛️ **Middleware** - Transform values with sync or async middleware
+- 🐛 **Debug Mode** - Built-in debugging capabilities
 
 ## Getting Started
 
@@ -53,10 +56,12 @@ unsubscribe();
 
 ### Methods
 
-#### reflex<T>(options: ReactiveOptions<T>): Reactive<T>
+#### reflex<T>(options: ReflexOptions<T>): Reflex<T>
 - Creates a reactive value with subscription capabilities
 - Supports custom equality functions for complex objects
-- Returns a Reactive object with `value`, `setValue`, and `subscribe` methods
+- Optional middleware for value transformation
+- Debug mode for detailed logging
+- Returns a Reactive object with sync and async methods
 
 ```typescript
 const counter = reflex({ initialValue: 0 });
@@ -64,19 +69,32 @@ const user = reflex({
   initialValue: { name: 'John' },
   equals: (prev, next) => prev.name === next.name
 });
+
+const counter = reflex({ 
+  initialValue: 0,
+  equals: (prev, next) => prev === next,
+  debug: true,
+  middleware: [
+    value => Math.max(0, value), // Keep value non-negative
+    async value => validate(value) // Async validation
+  ]
+});
 ```
 
-#### deepReflex<T extends object>(options: DeepReactiveOptions<T>): DeepReactive<T>
+#### deepReflex<T extends object>(options: DeepReflexOptions<T>): Reflex<T>
 - Creates a deeply reactive value that automatically tracks nested changes
 - Supports objects and arrays at any depth
 - Provides granular property change tracking
+- Supports both sync and async operations
 - Returns a DeepReactive object with deep reactivity features
 
 ```typescript
-const user = deepReflex({
+const game = deepReflex({
   initialValue: {
-    name: 'John',
-    profile: { age: 30 }
+    player: {
+      name: 'Player1',
+      stats: { health: 100 }
+    }
   },
   onPropertyChange: (path, value) => {
     console.log(`Changed ${path.join('.')} to ${value}`);
@@ -84,8 +102,9 @@ const user = deepReflex({
 });
 ```
 
-#### computed<TDeps, TResult>(dependencies: TDeps[], compute: (values: TDeps) => TResult): Reactive<TResult>
+#### computed<TDeps, TResult>(dependencies: TDeps[], compute: (values: TDeps) => TResult | Promise<TResult>): Reflex<TResult>
 - Creates a read-only reactive value derived from other reactive values
+- Supports both sync and async computations
 - Automatically updates when dependencies change
 - Efficient: only recomputes when dependency values actually change
 
@@ -93,6 +112,12 @@ const user = deepReflex({
 const width = reflex({ initialValue: 5 });
 const height = reflex({ initialValue: 10 });
 const area = computed([width, height], ([w, h]) => w * h);
+
+// Async computed
+const userProfile = computed([userId], async ([id]) => {
+  const data = await fetchUserProfile(id);
+  return processProfileData(data);
+});
 ```
 
 ## Further Reading

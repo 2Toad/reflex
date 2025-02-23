@@ -12,21 +12,12 @@ function isObject(value: unknown): value is Record<string | number, unknown> {
  * Creates a deeply reactive value that can track changes to nested properties.
  * Uses Proxy to intercept property access and modifications.
  *
- * @example
- * ```typescript
- * const user = deepReflex({
- *   initialValue: {
- *     name: 'John',
- *     profile: { age: 30 }
- *   }
- * });
- *
- * // Subscribe to changes
- * user.subscribe(value => console.log('User changed:', value));
- *
- * // Nested changes trigger updates
- * user.value.profile.age = 31; // Triggers update
- * ```
+ * @param options - Configuration options for the deep reflex value
+ * @param options.initialValue - The initial object value to store
+ * @param options.equals - Optional custom equality function to determine if value has changed
+ * @param options.deep - Whether to make nested objects deeply reactive (default: true)
+ * @param options.onPropertyChange - Optional callback for individual property changes
+ * @returns A reflex object with methods to get/set values and subscribe to changes
  */
 export function deepReflex<T extends object>(options: DeepReflexOptions<T>): Reflex<T> {
   const { deep = true, onPropertyChange } = options;
@@ -155,6 +146,20 @@ export function deepReflex<T extends object>(options: DeepReflexOptions<T>): Ref
       }
     },
 
+    async setValueAsync(newValue: T) {
+      if (!isUpdating) {
+        isUpdating = true;
+        try {
+          // Create a new proxy for the new value
+          const newProxy = createProxy(newValue);
+          // Update the base reactive, which will trigger subscribers
+          await baseReflex.setValueAsync(newProxy);
+        } finally {
+          isUpdating = false;
+        }
+      }
+    },
+
     subscribe(callback: Subscriber<T>) {
       return baseReflex.subscribe(callback);
     },
@@ -187,6 +192,44 @@ export function deepReflex<T extends object>(options: DeepReflexOptions<T>): Ref
         isBatching = wasBatching;
         batchedChanges = previousChanges;
       }
+    },
+
+    async batchAsync<R>(updateFn: (value: T) => Promise<R> | R): Promise<R> {
+      const wasBatching = isBatching;
+      const previousChanges = batchedChanges;
+
+      isBatching = true;
+      batchedChanges = wasBatching ? previousChanges : [];
+
+      try {
+        const result = await Promise.resolve(updateFn(proxy));
+
+        if (!wasBatching) {
+          // Only process changes if this is the outermost batch
+          // Process all batched changes
+          if (onPropertyChange) {
+            batchedChanges.forEach((change) => {
+              onPropertyChange(change.path, change.value);
+            });
+          }
+
+          // Notify subscribers once
+          await baseReflex.setValueAsync({ ...baseReflex.value });
+        }
+
+        return result;
+      } finally {
+        isBatching = wasBatching;
+        batchedChanges = previousChanges;
+      }
+    },
+
+    addMiddleware(fn) {
+      return baseReflex.addMiddleware(fn);
+    },
+
+    removeMiddleware(fn) {
+      return baseReflex.removeMiddleware(fn);
     },
   };
 }

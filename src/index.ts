@@ -1,4 +1,4 @@
-export type { Reflex, ReflexOptions, DeepReflexOptions, PropertyPath, PropertyValue, Subscriber, Unsubscribe } from "./types";
+export type { Reflex, ReflexOptions, DeepReflexOptions, PropertyPath, PropertyValue, Subscriber, Unsubscribe, DependencyValues } from "./types";
 
 export { reflex } from "./reflex";
 export { computed } from "./computed";

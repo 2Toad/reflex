@@ -1,6 +1,6 @@
 # Deep Reactivity
 
-Deep reactive values automatically track changes to nested properties in objects and arrays.
+Deep Reflex values automatically track changes to nested properties in objects and arrays.
 
 ## Basic Usage
 
@@ -56,7 +56,7 @@ delete user.value.profile.age;   // Logs: "Property changed: profile.age = undef
 ## Options
 
 ```typescript
-interface DeepReactiveOptions<T extends object> extends ReactiveOptions<T> {
+interface DeepReflexOptions<T extends object> extends ReflexOptions<T> {
   /** Whether to make nested objects deeply reactive (default: true) */
   deep?: boolean;
 

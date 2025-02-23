@@ -78,9 +78,10 @@ const searchResults = switchMap(searchTerm, async term => {
 
 // Also works with reflex values
 const userId = reflex({ initialValue: 1 });
-const userProfile = switchMap(userId, id => {
+const userProfile = switchMap(userId, async id => {
   const profile = reflex({ initialValue: null });
-  fetchUserProfile(id).then(data => profile.setValue(data));
+  const data = await fetchUserProfile(id);
+  profile.setValue(data);
   return profile;
 }); // Switches to new profile stream when userId changes
 ```

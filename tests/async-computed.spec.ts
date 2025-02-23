@@ -1,5 +1,6 @@
 import { expect } from "chai";
 import { reflex, computed } from "../src";
+import { COMPUTED_ERRORS } from "../src/types";
 
 describe("Async Computed", () => {
   describe("Core Functionality", () => {
@@ -210,9 +211,9 @@ describe("Async Computed", () => {
           if (typeof v === "number" && v === 2) {
             try {
               doubled.batch((v) => v * 2);
-              reject(new Error("Should have thrown error"));
+              reject(new Error(COMPUTED_ERRORS.SYNC_BATCH));
             } catch (error) {
-              expect(error.message).to.equal("Cannot use sync batch on async computed value");
+              expect(error.message).to.equal(COMPUTED_ERRORS.SYNC_BATCH);
               resolve();
             }
           }

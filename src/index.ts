@@ -11,6 +11,10 @@ export type {
   BackpressureStrategy,
   BackpressureOptions,
   BackpressureCapable,
+  ProjectFunction,
+  BatchedChange,
+  ProxyState,
+  BackpressureState,
 } from "./types";
 
 export { reflex } from "./reflex";

@@ -120,7 +120,6 @@ else
 fi
 
 # Prompt for cleanup
-read -n 1 -s -r -p "Press any key to clean up test files (or Ctrl+C to keep them)..."
 echo -e "\n\n🧹 Cleaning up test files..."
 rm -rf test-reflex
 rm -f *.tgz

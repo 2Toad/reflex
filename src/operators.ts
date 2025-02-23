@@ -1,26 +1,15 @@
 import { reflex } from "./reflex";
-import type { Reflex, ReflexWithError } from "./types";
+import type { Reflex, ReflexWithError, ProjectFunction } from "./types";
 
 /**
  * Maps values from a source reflex using a transform function
  * @param source The source reflex to map from
  * @param fn The transform function to apply to each value
  */
-export function map<T, R>(source: Reflex<T>, fn: (value: T) => R): Reflex<R> {
-  const errorState = reflex<Error | null>({
-    initialValue: null,
-  });
-
-  const mapped = reflex<R>({
-    initialValue: undefined as unknown as R,
-  }) as ReflexWithError<R>;
-
-  // Try to set initial value
-  try {
-    mapped.setValue(fn(source.value));
-  } catch (error) {
-    errorState.setValue(error as Error);
-  }
+export function map<T, R>(source: Reflex<T>, fn: (value: T) => R): ReflexWithError<R> {
+  const errorState = reflex<Error | null>({ initialValue: null });
+  const mapped = reflex<R>({ initialValue: fn(source.value) }) as ReflexWithError<R>;
+  mapped._errorState = errorState;
 
   source.subscribe((value) => {
     try {
@@ -31,9 +20,6 @@ export function map<T, R>(source: Reflex<T>, fn: (value: T) => R): Reflex<R> {
       errorState.setValue(error as Error);
     }
   });
-
-  // Add error state to mapped reflex
-  mapped._errorState = errorState;
 
   return mapped;
 }
@@ -48,11 +34,7 @@ export function filter<T>(source: Reflex<T>, predicate: (value: T) => boolean): 
     initialValue: predicate(source.value) ? source.value : (undefined as T),
   });
 
-  source.subscribe((value) => {
-    if (predicate(value)) {
-      filtered.setValue(value);
-    }
-  });
+  source.subscribe((value) => predicate(value) && filtered.setValue(value));
 
   return filtered;
 }
@@ -61,27 +43,17 @@ export function filter<T>(source: Reflex<T>, predicate: (value: T) => boolean): 
  * Merges multiple reflex sources into a single reflex that emits whenever any source emits
  * @param sources Array of reflex sources to merge
  */
-export function merge<T>(sources: Array<Reflex<T>>): Reflex<T> {
-  if (sources.length === 0) {
+export function merge<T>(sources: ReadonlyArray<Reflex<T>>): Reflex<T> {
+  if (!sources.length) {
     throw new Error("merge requires at least one source");
   }
 
-  // Create merged reflex with initial value from first source
-  const merged = reflex<T>({
-    initialValue: sources[0].value,
-  });
+  const [firstSource, ...restSources] = sources;
+  const merged = reflex<T>({ initialValue: firstSource.value });
 
-  // Skip the first source's initial value since it's already set
-  sources.slice(1).forEach((source) => {
-    source.subscribe((value) => {
-      merged.setValue(value);
-    });
-  });
-
-  // Subscribe to the first source last to maintain order
-  sources[0].subscribe((value) => {
-    merged.setValue(value);
-  });
+  const subscriber = (value: T) => merged.setValue(value);
+  restSources.forEach((source) => source.subscribe(subscriber));
+  firstSource.subscribe(subscriber);
 
   return merged;
 }
@@ -90,8 +62,8 @@ export function merge<T>(sources: Array<Reflex<T>>): Reflex<T> {
  * Combines multiple reflex sources into a single reflex that emits arrays of their latest values
  * @param sources Array of reflex sources to combine
  */
-export function combine<T extends unknown[]>(sources: Array<Reflex<T[number]>>): Reflex<T> {
-  if (sources.length === 0) {
+export function combine<T extends unknown[]>(sources: ReadonlyArray<Reflex<T[number]>>): Reflex<T> {
+  if (!sources.length) {
     throw new Error("combine requires at least one source");
   }
 
@@ -101,11 +73,7 @@ export function combine<T extends unknown[]>(sources: Array<Reflex<T[number]>>):
 
   sources.forEach((source, index) => {
     source.subscribe((value) => {
-      const currentValues = [...combined.value];
-      // Index is safe as it comes from Array.forEach
-      // eslint-disable-next-line security/detect-object-injection
-      currentValues[index] = value;
-      combined.setValue(currentValues as T);
+      combined.setValue([...combined.value.slice(0, index), value, ...combined.value.slice(index + 1)] as T);
     });
   });
 
@@ -119,11 +87,9 @@ export function combine<T extends unknown[]>(sources: Array<Reflex<T[number]>>):
  * @param seed The initial accumulator value
  */
 export function scan<T, R>(source: Reflex<T>, reducer: (acc: R, value: T) => R, seed: R): Reflex<R> {
-  const scanned = reflex({
-    initialValue: reducer(seed, source.value),
-  });
-
+  const scanned = reflex({ initialValue: seed });
   let accumulator = seed;
+
   source.subscribe((value) => {
     accumulator = reducer(accumulator, value);
     scanned.setValue(accumulator);
@@ -138,20 +104,14 @@ export function scan<T, R>(source: Reflex<T>, reducer: (acc: R, value: T) => R, 
  * @param delayMs The delay in milliseconds
  */
 export function debounce<T>(source: Reflex<T>, delayMs: number): Reflex<T> {
-  const debounced = reflex({
-    initialValue: source.value,
-  });
-
-  let timeoutId: NodeJS.Timeout | null = null;
+  const debounced = reflex({ initialValue: source.value });
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   source.subscribe((value) => {
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
-
-    timeoutId = setTimeout(() => {
-      debounced.setValue(value);
-    }, delayMs);
+    timeoutId = setTimeout(() => debounced.setValue(value), delayMs);
   });
 
   return debounced;
@@ -163,50 +123,24 @@ export function debounce<T>(source: Reflex<T>, delayMs: number): Reflex<T> {
  * @param source The source reflex
  * @param project Function that returns a reflex or promise for each source value
  */
-export function switchMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex<R> | Promise<R>): Reflex<R> {
-  const result = reflex<R>({
-    initialValue: undefined as unknown as R,
-  });
+export function switchMap<T, R>(source: Reflex<T>, project: ProjectFunction<T, R>): Reflex<R> {
+  const result = reflex<R>({ initialValue: undefined as unknown as R });
+  let currentProjection = Symbol();
 
-  let currentProjection: symbol | null = null;
-
-  // Start with initial value
-  const initialProjection = Symbol();
-  currentProjection = initialProjection;
-  const initialProjected = project(source.value);
-
-  if (initialProjected instanceof Promise) {
-    initialProjected.then((value) => {
-      if (currentProjection === initialProjection) {
-        result.setValue(value);
-      }
-    });
-  } else {
-    result.setValue(initialProjected.value);
-    initialProjected.subscribe((value) => {
-      if (currentProjection === initialProjection) {
-        result.setValue(value);
-      }
-    });
-  }
-
-  source.subscribe(async (value) => {
-    const thisProjection = Symbol();
-    currentProjection = thisProjection;
-
+  const handleProjection = async (value: T, projectionId: symbol): Promise<void> => {
     try {
       const projected = project(value);
 
       if (projected instanceof Promise) {
         const resolvedValue = await projected;
-        if (currentProjection === thisProjection) {
+        if (currentProjection === projectionId) {
           result.setValue(resolvedValue);
         }
       } else {
-        if (currentProjection === thisProjection) {
+        if (currentProjection === projectionId) {
           result.setValue(projected.value);
           projected.subscribe((newValue) => {
-            if (currentProjection === thisProjection) {
+            if (currentProjection === projectionId) {
               result.setValue(newValue);
             }
           });
@@ -216,6 +150,12 @@ export function switchMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex
       console.error("[Reflex SwitchMap Error]", error);
       throw error;
     }
+  };
+
+  handleProjection(source.value, currentProjection);
+  source.subscribe((value) => {
+    currentProjection = Symbol();
+    handleProjection(value, currentProjection);
   });
 
   return result;
@@ -227,40 +167,27 @@ export function switchMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex
  * @param source The source reflex
  * @param project Function that returns a reflex or promise for each source value
  */
-export function mergeMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex<R> | Promise<R>): Reflex<R> {
-  const result = reflex<R>({
-    initialValue: undefined as unknown as R,
-  });
+export function mergeMap<T, R>(source: Reflex<T>, project: ProjectFunction<T, R>): Reflex<R> {
+  const result = reflex<R>({ initialValue: undefined as unknown as R });
 
-  // Start with initial value
-  const initialProjected = project(source.value);
-  if (initialProjected instanceof Promise) {
-    initialProjected.then((value) => result.setValue(value));
-  } else {
-    result.setValue(initialProjected.value);
-    initialProjected.subscribe((newValue) => {
-      result.setValue(newValue);
-    });
-  }
-
-  source.subscribe(async (value) => {
+  const handleProjection = async (value: T): Promise<void> => {
     try {
       const projected = project(value);
 
       if (projected instanceof Promise) {
-        const resolvedValue = await projected;
-        result.setValue(resolvedValue);
+        result.setValue(await projected);
       } else {
         result.setValue(projected.value);
-        projected.subscribe((newValue) => {
-          result.setValue(newValue);
-        });
+        projected.subscribe((newValue) => result.setValue(newValue));
       }
     } catch (error) {
       console.error("[Reflex MergeMap Error]", error);
       throw error;
     }
-  });
+  };
+
+  handleProjection(source.value);
+  source.subscribe(handleProjection);
 
   return result;
 }
@@ -271,53 +198,40 @@ export function mergeMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex<
  * @param source The source reflex
  * @param project Function that returns a reflex or promise for each source value
  */
-export function concatMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex<R> | Promise<R>): Reflex<R> {
-  const result = reflex<R>({
-    initialValue: undefined as unknown as R,
-  });
-
-  const queue: T[] = [];
+export function concatMap<T, R>(source: Reflex<T>, project: ProjectFunction<T, R>): Reflex<R> {
+  const result = reflex<R>({ initialValue: undefined as unknown as R });
+  const queue: T[] = [source.value];
   let isProcessing = false;
 
-  const processQueue = async () => {
-    if (isProcessing || queue.length === 0) return;
+  const processQueue = async (): Promise<void> => {
+    if (isProcessing || !queue.length) return;
 
     isProcessing = true;
-    const value = queue[0]; // Don't shift yet
+    const value = queue[0];
 
     try {
       const projected = project(value);
 
       if (projected instanceof Promise) {
-        const resolvedValue = await projected;
-        result.setValue(resolvedValue);
-        queue.shift(); // Remove after successful processing
-        isProcessing = false;
-        processQueue();
+        result.setValue(await projected);
       } else {
         result.setValue(projected.value);
-        const unsubscribe = projected.subscribe((newValue) => {
-          result.setValue(newValue);
-        });
-        // Wait a tick to allow synchronous emissions
+        const unsubscribe = projected.subscribe((newValue) => result.setValue(newValue));
         await new Promise((resolve) => setTimeout(resolve, 0));
         unsubscribe();
-        queue.shift(); // Remove after successful processing
-        isProcessing = false;
-        processQueue();
       }
+
+      queue.shift();
     } catch (error) {
       console.error("[Reflex ConcatMap Error]", error);
-      queue.shift(); // Remove on error
+      queue.shift();
+    } finally {
       isProcessing = false;
       processQueue();
     }
   };
 
-  // Start with initial value
-  queue.push(source.value);
   processQueue();
-
   source.subscribe((value) => {
     queue.push(value);
     processQueue();
@@ -332,48 +246,33 @@ export function concatMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex
  * @param errorHandler Function that returns a reflex or value to recover from the error
  */
 export function catchError<T, R>(source: Reflex<T>, errorHandler: (error: Error) => Reflex<R> | R): Reflex<T | R> {
-  let currentFallback: Reflex<R> | null = null;
-  let fallbackUnsubscribe: (() => void) | null = null;
+  const result = reflex<T | R>({ initialValue: undefined as unknown as T | R });
+  let currentFallback: { reflex: Reflex<R>; unsubscribe: () => void } | null = null;
 
-  const result = reflex<T | R>({
-    initialValue: undefined as unknown as T | R,
-  });
-
-  const handleError = (error: Error) => {
-    // Clean up any existing fallback subscription
-    if (fallbackUnsubscribe) {
-      fallbackUnsubscribe();
-      fallbackUnsubscribe = null;
-      currentFallback = null;
-    }
+  const handleError = (error: Error): void => {
+    currentFallback?.unsubscribe();
+    currentFallback = null;
 
     const handled = errorHandler(error);
     if (handled instanceof Object && "subscribe" in handled) {
-      currentFallback = handled as Reflex<R>;
-      result.setValue(currentFallback.value);
-      fallbackUnsubscribe = currentFallback.subscribe((value: R) => {
-        result.setValue(value);
-      });
+      const fallbackReflex = handled as Reflex<R>;
+      const unsubscribe = fallbackReflex.subscribe((value) => result.setValue(value));
+      currentFallback = { reflex: fallbackReflex, unsubscribe };
+      result.setValue(fallbackReflex.value);
     } else {
       result.setValue(handled as R);
     }
   };
 
-  // Handle initial value
   try {
     result.setValue(source.value);
   } catch (error) {
     handleError(error as Error);
   }
 
-  // Subscribe to source
   source.subscribe((value: T) => {
-    // If we're in fallback mode and this is a successful value, cleanup fallback
     if (currentFallback) {
-      if (fallbackUnsubscribe) {
-        fallbackUnsubscribe();
-        fallbackUnsubscribe = null;
-      }
+      currentFallback.unsubscribe();
       currentFallback = null;
     }
 
@@ -384,15 +283,8 @@ export function catchError<T, R>(source: Reflex<T>, errorHandler: (error: Error)
     }
   });
 
-  // Subscribe to error state if available
   const errorState = (source as ReflexWithError<T>)._errorState;
-  if (errorState) {
-    errorState.subscribe((error: Error | null) => {
-      if (error) {
-        handleError(error);
-      }
-    });
-  }
+  errorState?.subscribe((error) => error && handleError(error));
 
   return result;
 }

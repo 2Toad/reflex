@@ -1,4 +1,4 @@
-import { Reflex, Unsubscribe, DependencyValues } from "./types";
+import { Reflex, Unsubscribe, DependencyValues, ComputeFunction, ComputedState, COMPUTED_ERRORS } from "./types";
 import { reflex } from "./reflex";
 
 /**
@@ -11,142 +11,133 @@ import { reflex } from "./reflex";
  */
 export function computed<TDeps extends Reflex<unknown>[], TResult>(
   dependencies: [...TDeps],
-  compute: (values: DependencyValues<TDeps>) => TResult | Promise<TResult>,
+  compute: ComputeFunction<TDeps, TResult>,
 ): Reflex<TResult> {
-  let isComputing = false;
-  let isAsync = false;
-  let currentComputed: TResult = undefined as TResult;
-  let computePromise: Promise<void> | null = null;
+  const state: ComputedState<TResult> = {
+    isComputing: false,
+    isAsync: false,
+    currentComputed: undefined as TResult,
+    computePromise: null,
+    cleanups: [],
+    subscriptionCount: 0,
+  };
 
-  // Create reactive for computed value
-  const result = reflex<TResult>({
-    initialValue: currentComputed,
-  });
+  const result = reflex<TResult>({ initialValue: state.currentComputed });
 
-  let cleanups: Unsubscribe[] = [];
-  let subscriptionCount = 0;
-
-  const recompute = async () => {
-    if (isComputing) {
-      if (computePromise) {
-        await computePromise;
-      }
+  const recompute = async (): Promise<void> => {
+    if (state.isComputing) {
+      await state.computePromise;
       return;
     }
-    isComputing = true;
+
+    state.isComputing = true;
 
     try {
       const depValues = dependencies.map((dep) => dep.value) as DependencyValues<TDeps>;
 
-      // Check if any dependency is undefined
       if (depValues.some((v) => v === undefined)) {
-        currentComputed = undefined as TResult;
-        result.setValue(currentComputed);
-        isComputing = false;
+        state.currentComputed = undefined as TResult;
+        result.setValue(state.currentComputed);
         return;
       }
 
       const computeResult = compute(depValues);
 
       if (computeResult instanceof Promise) {
-        isAsync = true;
-        computePromise = computeResult
-          .then((value) => {
-            if (subscriptionCount > 0) {
-              // Only update if we still have subscribers
-              currentComputed = value;
-              result.setValue(value);
-            }
-          })
-          .catch((error) => {
-            console.error("Error in async compute function:", error);
-          })
-          .finally(() => {
-            isComputing = false;
-            computePromise = null;
-          });
-        await computePromise;
+        state.isAsync = true;
+        try {
+          const value = await computeResult;
+          if (state.subscriptionCount > 0) {
+            state.currentComputed = value;
+            result.setValue(value);
+          }
+        } catch (error) {
+          console.error("[Computed Error] Async compute function failed:", error);
+        } finally {
+          state.isComputing = false;
+          state.computePromise = null;
+        }
       } else {
-        currentComputed = computeResult;
+        state.currentComputed = computeResult;
         result.setValue(computeResult);
-        isComputing = false;
       }
     } catch (error) {
-      console.error("Error in compute function:", error);
-      isComputing = false;
+      console.error("[Computed Error] Compute function failed:", error);
+    } finally {
+      state.isComputing = false;
     }
   };
 
-  const setupDependencies = () => {
-    // Clear any existing subscriptions
-    cleanups.forEach((cleanup) => cleanup());
-    cleanups = [];
+  const setupDependencies = (): void => {
+    state.cleanups.forEach((cleanup) => cleanup());
+    state.cleanups = [];
 
-    // Subscribe to all dependencies
-    cleanups = dependencies.map((dep) =>
+    state.cleanups = dependencies.map((dep) =>
       dep.subscribe(() => {
-        if (subscriptionCount > 0) {
+        if (state.subscriptionCount > 0) {
           recompute();
         }
       }),
     );
 
-    // Initial computation
     recompute();
   };
 
-  // Override subscribe to manage dependency subscriptions
+  const cleanup = (): void => {
+    state.cleanups.forEach((cleanup) => cleanup());
+    state.cleanups = [];
+  };
+
   const originalSubscribe = result.subscribe;
+
   return {
-    get value() {
-      return currentComputed;
+    get value(): TResult {
+      return state.currentComputed;
     },
 
-    setValue() {
-      throw new Error("Cannot set the value of a computed reactive");
+    setValue(): never {
+      throw new Error(COMPUTED_ERRORS.SET_VALUE);
     },
 
-    setValueAsync() {
-      throw new Error("Cannot set the value of a computed reactive");
+    setValueAsync(): never {
+      throw new Error(COMPUTED_ERRORS.SET_VALUE);
     },
 
-    subscribe(callback) {
-      if (subscriptionCount === 0) {
+    subscribe(callback): Unsubscribe {
+      if (state.subscriptionCount === 0) {
         setupDependencies();
       }
-      subscriptionCount++;
+      state.subscriptionCount++;
 
       const unsubscribe = originalSubscribe.call(result, callback);
+
       return () => {
         unsubscribe();
-        subscriptionCount--;
-        if (subscriptionCount === 0) {
-          cleanups.forEach((cleanup) => cleanup());
-          cleanups = [];
+        state.subscriptionCount--;
+        if (state.subscriptionCount === 0) {
+          cleanup();
         }
       };
     },
 
     batch<R>(updateFn: (value: TResult) => R): R {
-      if (isAsync) {
-        throw new Error("Cannot use sync batch on async computed value");
+      if (state.isAsync) {
+        throw new Error(COMPUTED_ERRORS.SYNC_BATCH);
       }
-      return updateFn(currentComputed);
+      return updateFn(state.currentComputed);
     },
 
     async batchAsync<R>(updateFn: (value: TResult) => Promise<R> | R): Promise<R> {
-      if (computePromise) {
-        await computePromise;
-      }
-      return Promise.resolve(updateFn(currentComputed));
+      await state.computePromise;
+      return Promise.resolve(updateFn(state.currentComputed));
     },
 
-    addMiddleware() {
-      throw new Error("Cannot add middleware to a computed reactive");
+    addMiddleware(): never {
+      throw new Error(COMPUTED_ERRORS.ADD_MIDDLEWARE);
     },
 
-    removeMiddleware() {
-      throw new Error("Cannot remove middleware from a computed reactive");
+    removeMiddleware(): never {
+      throw new Error(COMPUTED_ERRORS.REMOVE_MIDDLEWARE);
     },
   };
 }

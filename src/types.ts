@@ -14,6 +14,33 @@ export type Unsubscribe = () => void;
 export type Middleware<T> = (value: T) => T | Promise<T>;
 
 /**
+ * Function that computes a result from dependency values in a computed reflex
+ */
+export type ComputeFunction<TDeps extends Reflex<unknown>[], TResult> = (values: DependencyValues<TDeps>) => TResult | Promise<TResult>;
+
+/**
+ * Internal state for computed reflex values
+ */
+export interface ComputedState<TResult> {
+  isComputing: boolean;
+  isAsync: boolean;
+  currentComputed: TResult;
+  computePromise: Promise<void> | null;
+  cleanups: Unsubscribe[];
+  subscriptionCount: number;
+}
+
+/**
+ * Error messages for computed reflex operations
+ */
+export const COMPUTED_ERRORS = {
+  SET_VALUE: "Cannot set the value of a computed reactive",
+  ADD_MIDDLEWARE: "Cannot add middleware to a computed reactive",
+  REMOVE_MIDDLEWARE: "Cannot remove middleware from a computed reactive",
+  SYNC_BATCH: "Cannot use sync batch on async computed value",
+} as const;
+
+/**
  * Options for creating a Reflex value
  */
 export interface ReflexOptions<T> {
@@ -90,6 +117,24 @@ export interface DeepReflexOptions<T extends object> extends ReflexOptions<T> {
 }
 
 /**
+ * Type for batched changes
+ */
+export interface BatchedChange {
+  path: PropertyPath;
+  value: PropertyValue;
+}
+
+/**
+ * Internal state for deep Reflex values
+ */
+export interface ProxyState {
+  isUpdating: boolean;
+  isBatching: boolean;
+  batchedChanges: BatchedChange[];
+  batchDepth: number;
+}
+
+/**
  * Extracts the underlying value types from an array of reflex values.
  * Used in computed values to transform an array of Reflex<T> into a tuple of their contained types.
  */
@@ -145,3 +190,23 @@ export interface BackpressureCapable {
   /** Get the current buffer size (if applicable) */
   getBufferSize: () => number;
 }
+
+/**
+ * Internal state for backpressure handling
+ */
+export interface BackpressureState<T> {
+  buffer: T[];
+  isPaused: boolean;
+  valueCount: number;
+  sourceUnsubscribe: (() => void) | null;
+  subscriberCount: number;
+  timeoutId?: NodeJS.Timeout | null;
+  isInitialized?: boolean;
+  pendingValue?: T | null;
+  lastEmitTime: number;
+}
+
+/**
+ * Type for functions that project values from a source to a new Reflex or Promise
+ */
+export type ProjectFunction<T, R> = (value: T) => Reflex<R> | Promise<R>;

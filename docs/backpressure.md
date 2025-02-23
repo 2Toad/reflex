@@ -123,14 +123,29 @@ sampledPosition.subscribe(updateUI);
 ```
 
 #### throttle
-Limits emission rate to at most once per duration.
+Limits emission rate with intelligent value selection:
+
+1. Initial Phase: Always emits the initial value immediately
+2. Early Window Phase: Emits the first value in a new throttle window if it arrives early (within first half of the window)
+3. Late Window Phase: Schedules the last value received during the throttle window for emission when the window ends
 
 ```typescript
 const scrollEvents = reflex({ initialValue: 0 });
 const smoothScroll = throttle(scrollEvents, 100);
 
+// If scrollEvents emits: 0, 1, 2, 3, 4, 5 rapidly
+// smoothScroll will emit:
+// - 0 (initial value)
+// - 1 (first value in new window)
+// - 3 (last value in window)
+
 smoothScroll.subscribe(updateScrollIndicator);
 ```
+
+This intelligent throttling ensures:
+- No initial delay (first value is immediate)
+- Responsive to early changes (useful for UI feedback)
+- Eventual consistency (last value is always processed)
 
 ## Strategy Details
 

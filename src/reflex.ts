@@ -19,10 +19,10 @@ export function reflex<T>(options: ReflexOptions<T>): Reflex<T> {
   let batchQueue: T[] = [];
   let middleware = options.middleware || [];
 
-  const defaultEquals = (a: T, b: T) => a === b;
+  const defaultEquals = (a: T, b: T) => Object.is(a, b);
   const equals = options.equals || defaultEquals;
 
-  const debugLog = (message: string, value?: T) => {
+  const debugLog = (message: string, value?: T): void => {
     if (options.debug) {
       console.log(`[Reflex Debug] ${message}`, value !== undefined ? value : "");
     }
@@ -47,7 +47,7 @@ export function reflex<T>(options: ReflexOptions<T>): Reflex<T> {
     return result;
   };
 
-  const notifySubscribers = (value: T) => {
+  const notifySubscribers = (value: T): void => {
     if (isNotifying || (isBatching && !options.notifyDuringBatch)) {
       if (isBatching) {
         batchQueue.push(value);
@@ -77,7 +77,7 @@ export function reflex<T>(options: ReflexOptions<T>): Reflex<T> {
     }
   };
 
-  const processQueuedUpdates = () => {
+  const processQueuedUpdates = (): void => {
     if (batchQueue.length === 0) return;
 
     const lastValue = batchQueue[batchQueue.length - 1];
@@ -86,14 +86,13 @@ export function reflex<T>(options: ReflexOptions<T>): Reflex<T> {
   };
 
   return {
-    get value() {
+    get value(): T {
       return currentValue;
     },
 
-    setValue(newValue: T) {
+    setValue(newValue: T): void {
       try {
         const processedValue = applyMiddleware(newValue);
-
         if (!equals(currentValue, processedValue)) {
           debugLog("Setting new value:", processedValue);
           currentValue = processedValue;
@@ -153,7 +152,7 @@ export function reflex<T>(options: ReflexOptions<T>): Reflex<T> {
       }
     },
 
-    async setValueAsync(newValue: T) {
+    async setValueAsync(newValue: T): Promise<void> {
       try {
         let processedValue = newValue;
         for (const fn of middleware) {
@@ -196,12 +195,12 @@ export function reflex<T>(options: ReflexOptions<T>): Reflex<T> {
       }
     },
 
-    addMiddleware(fn: Middleware<T>) {
+    addMiddleware(fn: Middleware<T>): void {
       middleware.push(fn);
       debugLog("Middleware added");
     },
 
-    removeMiddleware(fn: Middleware<T>) {
+    removeMiddleware(fn: Middleware<T>): void {
       middleware = middleware.filter((m) => m !== fn);
       debugLog("Middleware removed");
     },

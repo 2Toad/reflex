@@ -1,5 +1,6 @@
 import { expect } from "chai";
 import { reflex, computed } from "../src";
+import { COMPUTED_ERRORS } from "../src/types";
 
 describe("Computed", () => {
   it("should compute initial value from dependencies", (done) => {
@@ -40,8 +41,8 @@ describe("Computed", () => {
     const doubled = computed([value], ([v]) => v * 2);
 
     expect(() => {
-      (doubled as any).setValue(4);
-    }).to.throw("Cannot set the value of a computed reactive");
+      doubled.setValue(42);
+    }).to.throw(COMPUTED_ERRORS.SET_VALUE);
   });
 
   it("should cleanup dependencies when last subscriber unsubscribes", (done) => {

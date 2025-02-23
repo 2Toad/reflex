@@ -1,12 +1,12 @@
-import { Reflex, DeepReflexOptions, Subscriber, PropertyPath, PropertyValue } from "./types";
+import { Reflex, DeepReflexOptions, Subscriber, PropertyPath, PropertyValue, ProxyState } from "./types";
 import { reflex } from "./reflex";
 
 /**
- * Type guard to check if a value is an object
+ * Type guard to check if a value is a plain object or array
  */
-function isObject(value: unknown): value is Record<string | number, unknown> {
-  return typeof value === "object" && value !== null;
-}
+const isObjectOrArray = (value: unknown): value is Record<string | number, unknown> => {
+  return typeof value === "object" && value !== null && !(value instanceof Date) && !(value instanceof RegExp);
+};
 
 /**
  * Creates a deeply reactive value that can track changes to nested properties.
@@ -22,26 +22,69 @@ function isObject(value: unknown): value is Record<string | number, unknown> {
 export function deepReflex<T extends object>(options: DeepReflexOptions<T>): Reflex<T> {
   const { deep = true, onPropertyChange } = options;
   const baseReflex = reflex(options);
-  let isUpdating = false;
-  let isBatching = false;
-  let batchedChanges: { path: PropertyPath; value: PropertyValue }[] = [];
 
-  function createProxy<V extends object>(target: V, path: PropertyPath = []): V {
-    if (!isObject(target)) {
-      return target;
+  const state: ProxyState = {
+    isUpdating: false,
+    isBatching: false,
+    batchedChanges: [],
+    batchDepth: 0,
+  };
+
+  const notifyPropertyChange = (path: PropertyPath, value: PropertyValue): void => {
+    if (onPropertyChange) {
+      if (state.isBatching) {
+        state.batchedChanges.push({ path, value });
+      } else {
+        onPropertyChange(path, value);
+      }
     }
+  };
 
+  const updateValue = async (isAsync = false): Promise<void> => {
+    if (!state.isBatching || state.batchDepth === 0) {
+      if (isAsync) {
+        await baseReflex.setValueAsync({ ...baseReflex.value });
+      } else {
+        baseReflex.setValue({ ...baseReflex.value });
+      }
+    }
+  };
+
+  const createArrayProxy = <V extends unknown[]>(target: V, path: PropertyPath = []): V => {
     return new Proxy(target, {
       get(obj: V, prop: string | symbol): unknown {
-        if (typeof prop === "symbol") {
-          return Reflect.get(obj, prop);
+        const value = Reflect.get(obj, prop);
+
+        if (typeof prop === "symbol" || !deep) {
+          return value;
         }
 
-        const value = Reflect.get(obj, prop);
-        if (deep && isObject(value)) {
-          return createProxy(value, [...path, prop]);
+        // Handle array methods that modify the array
+        if (
+          prop === "push" ||
+          prop === "pop" ||
+          prop === "shift" ||
+          prop === "unshift" ||
+          prop === "splice" ||
+          prop === "sort" ||
+          prop === "reverse"
+        ) {
+          return (...args: unknown[]) => {
+            const result = Array.prototype[prop as keyof typeof Array.prototype].apply(obj, args);
+            if (!state.isUpdating) {
+              state.isUpdating = true;
+              try {
+                notifyPropertyChange(path, obj);
+                updateValue();
+              } finally {
+                state.isUpdating = false;
+              }
+            }
+            return result;
+          };
         }
-        return value;
+
+        return isObjectOrArray(value) ? createProxy(value, [...path, prop]) : value;
       },
 
       set(obj: V, prop: string | symbol, value: unknown): boolean {
@@ -50,35 +93,23 @@ export function deepReflex<T extends object>(options: DeepReflexOptions<T>): Ref
         }
 
         const oldValue = Reflect.get(obj, prop);
-        if (oldValue === value) {
+        if (Object.is(oldValue, value)) {
           return true;
         }
 
-        // Create proxy for new object values
-        const newValue = deep && isObject(value) ? createProxy(value, [...path, prop]) : value;
+        const newValue = deep && isObjectOrArray(value) ? createProxy(value, [...path, prop]) : value;
 
-        const success = Reflect.set(obj, prop, newValue);
-        if (!success) return false;
+        if (!Reflect.set(obj, prop, newValue)) {
+          return false;
+        }
 
-        if (!isUpdating) {
-          isUpdating = true;
+        if (!state.isUpdating) {
+          state.isUpdating = true;
           try {
-            // Track property changes during batch
-            if (onPropertyChange) {
-              const changePath = [...path, prop];
-              if (isBatching) {
-                batchedChanges.push({ path: changePath, value: newValue });
-              } else {
-                onPropertyChange(changePath, newValue);
-              }
-            }
-
-            // Notify all subscribers about the root object change
-            if (!isBatching) {
-              baseReflex.setValue({ ...baseReflex.value });
-            }
+            notifyPropertyChange([...path, prop], newValue);
+            updateValue();
           } finally {
-            isUpdating = false;
+            state.isUpdating = false;
           }
         }
 
@@ -86,150 +117,204 @@ export function deepReflex<T extends object>(options: DeepReflexOptions<T>): Ref
       },
 
       deleteProperty(obj: V, prop: string | symbol): boolean {
-        if (typeof prop === "symbol") {
+        if (typeof prop === "symbol" || !Reflect.has(obj, prop)) {
           return Reflect.deleteProperty(obj, prop);
         }
 
-        if (!Reflect.has(obj, prop)) {
-          return true;
+        if (!Reflect.deleteProperty(obj, prop)) {
+          return false;
         }
 
-        const success = Reflect.deleteProperty(obj, prop);
-        if (!success) return false;
-
-        if (!isUpdating) {
-          isUpdating = true;
+        if (!state.isUpdating) {
+          state.isUpdating = true;
           try {
-            // Track property deletion during batch
-            if (onPropertyChange) {
-              const changePath = [...path, prop];
-              if (isBatching) {
-                batchedChanges.push({ path: changePath, value: undefined });
-              } else {
-                onPropertyChange(changePath, undefined);
-              }
-            }
-
-            // Notify all subscribers about the root object change
-            if (!isBatching) {
-              baseReflex.setValue({ ...baseReflex.value });
-            }
+            notifyPropertyChange([...path, prop], undefined);
+            updateValue();
           } finally {
-            isUpdating = false;
+            state.isUpdating = false;
           }
         }
 
         return true;
       },
     });
-  }
+  };
 
-  // Create initial proxy
+  const createProxy = <V extends object>(target: V, path: PropertyPath = []): V => {
+    if (!isObjectOrArray(target)) {
+      return target;
+    }
+
+    if (Array.isArray(target)) {
+      return createArrayProxy(target, path) as unknown as V;
+    }
+
+    return new Proxy(target, {
+      get(obj: V, prop: string | symbol): unknown {
+        const value = Reflect.get(obj, prop);
+        return typeof prop === "symbol" || !deep || !isObjectOrArray(value) ? value : createProxy(value, [...path, prop]);
+      },
+
+      set(obj: V, prop: string | symbol, value: unknown): boolean {
+        if (typeof prop === "symbol") {
+          return Reflect.set(obj, prop, value);
+        }
+
+        const oldValue = Reflect.get(obj, prop);
+        if (Object.is(oldValue, value)) {
+          return true;
+        }
+
+        const newValue = deep && isObjectOrArray(value) ? createProxy(value, [...path, prop]) : value;
+
+        if (!Reflect.set(obj, prop, newValue)) {
+          return false;
+        }
+
+        if (!state.isUpdating) {
+          state.isUpdating = true;
+          try {
+            notifyPropertyChange([...path, prop], newValue);
+            updateValue();
+          } finally {
+            state.isUpdating = false;
+          }
+        }
+
+        return true;
+      },
+
+      deleteProperty(obj: V, prop: string | symbol): boolean {
+        if (typeof prop === "symbol" || !Reflect.has(obj, prop)) {
+          return Reflect.deleteProperty(obj, prop);
+        }
+
+        if (!Reflect.deleteProperty(obj, prop)) {
+          return false;
+        }
+
+        if (!state.isUpdating) {
+          state.isUpdating = true;
+          try {
+            notifyPropertyChange([...path, prop], undefined);
+            updateValue();
+          } finally {
+            state.isUpdating = false;
+          }
+        }
+
+        return true;
+      },
+    });
+  };
+
   const proxy = createProxy(options.initialValue);
 
+  const processBatchedChanges = async (isAsync = false): Promise<void> => {
+    if (state.batchDepth === 0) {
+      if (onPropertyChange) {
+        state.batchedChanges.forEach(({ path, value }) => {
+          onPropertyChange(path, value);
+        });
+      }
+      await updateValue(isAsync);
+    }
+  };
+
   return {
-    get value() {
+    get value(): T {
       return proxy;
     },
 
-    setValue(newValue: T) {
-      if (!isUpdating) {
-        isUpdating = true;
+    setValue(newValue: T): void {
+      if (!state.isUpdating) {
+        state.isUpdating = true;
         try {
-          // Create a new proxy for the new value
           const newProxy = createProxy(newValue);
-          // Update the base reactive, which will trigger subscribers
           baseReflex.setValue(newProxy);
         } finally {
-          isUpdating = false;
+          state.isUpdating = false;
         }
       }
     },
 
-    async setValueAsync(newValue: T) {
-      if (!isUpdating) {
-        isUpdating = true;
+    async setValueAsync(newValue: T): Promise<void> {
+      if (!state.isUpdating) {
+        state.isUpdating = true;
         try {
-          // Create a new proxy for the new value
           const newProxy = createProxy(newValue);
-          // Update the base reactive, which will trigger subscribers
           await baseReflex.setValueAsync(newProxy);
         } finally {
-          isUpdating = false;
+          state.isUpdating = false;
         }
       }
     },
 
-    subscribe(callback: Subscriber<T>) {
+    subscribe(callback: Subscriber<T>): () => void {
       return baseReflex.subscribe(callback);
     },
 
     batch<R>(updateFn: (value: T) => R): R {
-      const wasBatching = isBatching;
-      const previousChanges = batchedChanges;
+      state.batchDepth++;
+      const wasBatching = state.isBatching;
+      const previousChanges = state.batchedChanges;
 
-      isBatching = true;
-      batchedChanges = wasBatching ? previousChanges : [];
+      if (!wasBatching) {
+        state.isBatching = true;
+        state.batchedChanges = [];
+      }
 
       try {
         const result = updateFn(proxy);
+        state.batchDepth--;
 
-        if (!wasBatching) {
-          // Only process changes if this is the outermost batch
-          // Process all batched changes
-          if (onPropertyChange) {
-            batchedChanges.forEach((change) => {
-              onPropertyChange(change.path, change.value);
-            });
-          }
-
-          // Notify subscribers once
-          baseReflex.setValue({ ...baseReflex.value });
+        if (state.batchDepth === 0) {
+          processBatchedChanges();
         }
 
         return result;
       } finally {
-        isBatching = wasBatching;
-        batchedChanges = previousChanges;
+        if (!wasBatching) {
+          state.isBatching = false;
+          state.batchedChanges = previousChanges;
+        }
+        if (state.batchDepth === 0) {
+          state.batchedChanges = [];
+        }
       }
     },
 
     async batchAsync<R>(updateFn: (value: T) => Promise<R> | R): Promise<R> {
-      const wasBatching = isBatching;
-      const previousChanges = batchedChanges;
+      state.batchDepth++;
+      const wasBatching = state.isBatching;
+      const previousChanges = state.batchedChanges;
 
-      isBatching = true;
-      batchedChanges = wasBatching ? previousChanges : [];
+      if (!wasBatching) {
+        state.isBatching = true;
+        state.batchedChanges = [];
+      }
 
       try {
         const result = await Promise.resolve(updateFn(proxy));
+        state.batchDepth--;
 
-        if (!wasBatching) {
-          // Only process changes if this is the outermost batch
-          // Process all batched changes
-          if (onPropertyChange) {
-            batchedChanges.forEach((change) => {
-              onPropertyChange(change.path, change.value);
-            });
-          }
-
-          // Notify subscribers once
-          await baseReflex.setValueAsync({ ...baseReflex.value });
+        if (state.batchDepth === 0) {
+          await processBatchedChanges(true);
         }
 
         return result;
       } finally {
-        isBatching = wasBatching;
-        batchedChanges = previousChanges;
+        if (!wasBatching) {
+          state.isBatching = false;
+          state.batchedChanges = previousChanges;
+        }
+        if (state.batchDepth === 0) {
+          state.batchedChanges = [];
+        }
       }
     },
 
-    addMiddleware(fn) {
-      return baseReflex.addMiddleware(fn);
-    },
-
-    removeMiddleware(fn) {
-      return baseReflex.removeMiddleware(fn);
-    },
+    addMiddleware: baseReflex.addMiddleware,
+    removeMiddleware: baseReflex.removeMiddleware,
   };
 }

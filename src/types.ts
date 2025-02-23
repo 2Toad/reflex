@@ -96,3 +96,10 @@ export interface DeepReflexOptions<T extends object> extends ReflexOptions<T> {
 export type DependencyValues<T extends Reflex<unknown>[]> = {
   [K in keyof T]: T[K] extends Reflex<infer V> ? V : never;
 };
+
+/**
+ * A Reflex with an optional error state
+ */
+export interface ReflexWithError<T> extends Reflex<T> {
+  _errorState?: Reflex<Error | null>;
+}

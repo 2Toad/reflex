@@ -185,6 +185,152 @@ input.setValue('hello');
 // After 300ms of no changes, debouncedInput will update to 'hello'
 ```
 
+## Error Handling Operators
+
+### catchError
+Catches errors in a reflex stream and provides graceful error recovery through fallback values or alternative reflex streams. This operator is essential for building robust reactive applications that can handle failures gracefully.
+
+#### Key Features
+- Handles both synchronous and asynchronous errors
+- Supports both static fallback values and dynamic reflex fallbacks
+- Automatically cleans up fallback subscriptions when the source recovers
+- Integrates with the error state from map and other operators
+- Resumes normal operation when the source starts emitting valid values again
+
+#### Basic Usage
+
+```typescript
+import { reflex, map, catchError } from '@2toad/reflex';
+
+// Basic error recovery with a static value
+const source = reflex({ initialValue: 1 });
+const errorProne = map(source, (x) => {
+  if (x < 0) throw new Error('Value cannot be negative');
+  return x * 2;
+});
+
+const recovered = catchError(errorProne, () => 0);
+console.log(recovered.value); // 2
+source.setValue(-1); // Triggers error
+console.log(recovered.value); // 0 (fallback value)
+source.setValue(2); // Recovers
+console.log(recovered.value); // 4 (back to normal operation)
+```
+
+#### Real-World Examples
+
+1. **API Error Handling with Cached Data**
+```typescript
+// Maintain a cache of the last valid data
+const cache = reflex({ initialValue: [] });
+const apiData = map(source, async (query) => {
+  const response = await fetch(`/api/search?q=${query}`);
+  if (!response.ok) throw new Error('API Error');
+  const data = await response.json();
+  cache.setValue(data); // Update cache on success
+  return data;
+});
+
+// Fall back to cached data on API errors
+const resilientData = catchError(apiData, () => cache);
+```
+
+2. **Form Validation with User Feedback**
+```typescript
+const userInput = reflex({ initialValue: '' });
+const validatedInput = map(userInput, (value) => {
+  if (value.length < 3) throw new Error('Input too short');
+  if (!/^[a-zA-Z]+$/.test(value)) throw new Error('Only letters allowed');
+  return value;
+});
+
+// Show validation message on error
+const errorMessages = reflex({ initialValue: 'Please enter a value' });
+const safeInput = catchError(validatedInput, (error) => {
+  errorMessages.setValue(error.message);
+  return ''; // Clear invalid input
+});
+```
+
+3. **Real-time Data with Offline Support**
+```typescript
+const websocketData = reflex({ initialValue: null });
+const localData = reflex({ initialValue: null });
+
+// Try websocket first, fall back to local data
+const offlineCapableData = catchError(websocketData, () => {
+  console.log('Websocket failed, using local data');
+  return localData;
+});
+
+// When back online, automatically switches back to websocket data
+websocketData.subscribe((data) => {
+  localData.setValue(data); // Keep local copy updated
+});
+```
+
+4. **Progressive Enhancement**
+```typescript
+const modernFeature = reflex({ initialValue: null });
+const legacyFeature = reflex({ initialValue: null });
+
+const enhancedFeature = map(modernFeature, (value) => {
+  if (!window.modernAPISupported) {
+    throw new Error('Modern API not supported');
+  }
+  return value;
+});
+
+// Automatically falls back to legacy implementation
+const feature = catchError(enhancedFeature, () => legacyFeature);
+```
+
+#### Best Practices
+
+1. **Error Specificity**: Provide specific error handlers for different types of errors:
+```typescript
+const resilient = catchError(source, (error) => {
+  if (error instanceof NetworkError) return offlineData;
+  if (error instanceof ValidationError) return defaultValue;
+  return errorLogger.logAndReturnFallback(error);
+});
+```
+
+2. **Stateful Recovery**: Use reflex fallbacks when you need to maintain state during error conditions:
+```typescript
+const fallbackState = reflex({ initialValue: { status: 'error', retryCount: 0 } });
+const recovered = catchError(source, () => {
+  fallbackState.setValue({
+    ...fallbackState.value,
+    retryCount: fallbackState.value.retryCount + 1
+  });
+  return fallbackState;
+});
+```
+
+3. **Cleanup and Recovery**: The operator automatically handles cleanup when switching between normal and error states:
+```typescript
+// No manual cleanup needed
+const source = reflex({ initialValue: 'initial' });
+const fallback = reflex({ initialValue: 'fallback' });
+const recovered = catchError(source, () => fallback);
+
+// Automatically switches and cleans up subscriptions
+source.setValue('normal'); // Uses source value
+source.setValue(null); // Switches to fallback
+source.setValue('recovered'); // Switches back to source
+```
+
+#### Type Safety
+The catchError operator properly handles type unions between the source and fallback values:
+```typescript
+const source: Reflex<number> = reflex({ initialValue: 1 });
+const fallback: Reflex<string> = reflex({ initialValue: 'error' });
+
+// Type is Reflex<number | string>
+const recovered = catchError(source, () => fallback);
+```
+
 ## Best Practices
 
 1. **Chain Operators**: You can chain multiple operators together to create complex transformations:

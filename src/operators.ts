@@ -1,5 +1,5 @@
 import { reflex } from "./reflex";
-import type { Reflex } from "./types";
+import type { Reflex, ReflexWithError } from "./types";
 
 /**
  * Maps values from a source reflex using a transform function
@@ -7,13 +7,33 @@ import type { Reflex } from "./types";
  * @param fn The transform function to apply to each value
  */
 export function map<T, R>(source: Reflex<T>, fn: (value: T) => R): Reflex<R> {
-  const mapped = reflex<R>({
-    initialValue: fn(source.value),
+  const errorState = reflex<Error | null>({
+    initialValue: null,
   });
 
+  const mapped = reflex<R>({
+    initialValue: undefined as unknown as R,
+  }) as ReflexWithError<R>;
+
+  // Try to set initial value
+  try {
+    mapped.setValue(fn(source.value));
+  } catch (error) {
+    errorState.setValue(error as Error);
+  }
+
   source.subscribe((value) => {
-    mapped.setValue(fn(value));
+    try {
+      mapped.setValue(fn(value));
+      // Clear error state on success
+      errorState.setValue(null);
+    } catch (error) {
+      errorState.setValue(error as Error);
+    }
   });
+
+  // Add error state to mapped reflex
+  mapped._errorState = errorState;
 
   return mapped;
 }
@@ -302,6 +322,77 @@ export function concatMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex
     queue.push(value);
     processQueue();
   });
+
+  return result;
+}
+
+/**
+ * Catches errors in a reflex stream and allows for recovery or fallback values
+ * @param source The source reflex
+ * @param errorHandler Function that returns a reflex or value to recover from the error
+ */
+export function catchError<T, R>(source: Reflex<T>, errorHandler: (error: Error) => Reflex<R> | R): Reflex<T | R> {
+  let currentFallback: Reflex<R> | null = null;
+  let fallbackUnsubscribe: (() => void) | null = null;
+
+  const result = reflex<T | R>({
+    initialValue: undefined as unknown as T | R,
+  });
+
+  const handleError = (error: Error) => {
+    // Clean up any existing fallback subscription
+    if (fallbackUnsubscribe) {
+      fallbackUnsubscribe();
+      fallbackUnsubscribe = null;
+      currentFallback = null;
+    }
+
+    const handled = errorHandler(error);
+    if (handled instanceof Object && "subscribe" in handled) {
+      currentFallback = handled as Reflex<R>;
+      result.setValue(currentFallback.value);
+      fallbackUnsubscribe = currentFallback.subscribe((value: R) => {
+        result.setValue(value);
+      });
+    } else {
+      result.setValue(handled as R);
+    }
+  };
+
+  // Handle initial value
+  try {
+    result.setValue(source.value);
+  } catch (error) {
+    handleError(error as Error);
+  }
+
+  // Subscribe to source
+  source.subscribe((value: T) => {
+    // If we're in fallback mode and this is a successful value, cleanup fallback
+    if (currentFallback) {
+      if (fallbackUnsubscribe) {
+        fallbackUnsubscribe();
+        fallbackUnsubscribe = null;
+      }
+      currentFallback = null;
+    }
+
+    try {
+      result.setValue(value);
+    } catch (error) {
+      handleError(error as Error);
+    }
+  });
+
+  // Subscribe to error state if available
+  const errorState = (source as ReflexWithError<T>)._errorState;
+  if (errorState) {
+    errorState.subscribe((error: Error | null) => {
+      if (error) {
+        handleError(error);
+      }
+    });
+  }
 
   return result;
 }

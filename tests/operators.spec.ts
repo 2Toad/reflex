@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { reflex } from "../src";
-import { map, filter, merge, combine, scan, debounce, switchMap, mergeMap, concatMap } from "../src/operators";
+import { map, filter, merge, combine, scan, debounce, switchMap, mergeMap, concatMap, catchError } from "../src/operators";
 
 describe("Operators", () => {
   describe("map", () => {
@@ -134,6 +134,43 @@ describe("Operators", () => {
         expect(debounced.value).to.equal(3); // Should have updated to 3
         done();
       }, 100);
+    });
+  });
+
+  describe("catchError", () => {
+    it("should recover from errors with a fallback value", () => {
+      const source = reflex({ initialValue: 1 });
+      const errorProne = map(source, (x) => {
+        if (x === 2) throw new Error("Test error");
+        return x * 2;
+      });
+      const recovered = catchError(errorProne, () => 0);
+
+      expect(recovered.value).to.equal(2);
+
+      source.setValue(2);
+      expect(recovered.value).to.equal(0); // Fallback value after error
+
+      source.setValue(3);
+      expect(recovered.value).to.equal(6); // Resumes normal operation
+    });
+
+    it("should handle errors with a reflex fallback", () => {
+      const source = reflex({ initialValue: 1 });
+      const errorProne = map(source, (x) => {
+        if (x === 2) throw new Error("Test error");
+        return x * 2;
+      });
+      const fallbackReflex = reflex({ initialValue: 100 });
+      const recovered = catchError(errorProne, () => fallbackReflex);
+
+      expect(recovered.value).to.equal(2);
+
+      source.setValue(2);
+      expect(recovered.value).to.equal(100); // Fallback reflex value after error
+
+      fallbackReflex.setValue(200);
+      expect(recovered.value).to.equal(200); // Updates with fallback reflex
     });
   });
 });

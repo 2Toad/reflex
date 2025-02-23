@@ -1,10 +1,14 @@
 # Reflex ⚡
 
+A unique and refreshingly simple approach to state management.
+
 ![GitHub Release](https://img.shields.io/github/v/release/2Toad/reflex)
 [![Downloads](https://img.shields.io/npm/dm/@2toad/reflex.svg)](https://www.npmjs.com/package/@2toad/reflex)
 [![Build status](https://github.com/2toad/reflex/actions/workflows/ci.yml/badge.svg)](https://github.com/2Toad/reflex/actions/workflows/nodejs.yml)
 
-A simple yet powerful way to manage state in any JavaScript environment. Whether you're building browser applications, Node.js services, or CLI tools, Reflex helps you handle your data elegantly. Works with any framework (React, Vue, Angular) or vanilla JavaScript.
+Whether you're building browser applications, Node.js services, or CLI tools, Reflex helps you handle your data elegantly. Works with any framework (React, Vue, Angular) or vanilla JavaScript.
+
+👉 [Why choose Reflex?](./docs/why-reflex.md)
 
 ## Quick Start
 
@@ -66,6 +70,7 @@ const user = deepReflex({
 ## Want to learn more?
 Start here to learn the basics and get a solid foundation:
 
+- [Why Reflex?](./docs/why-reflex.md) - Understanding Reflex's unique approach
 - [Features Guide](./docs/features.md) - Core features and basic usage
 - [Advanced Usage](./docs/advanced-usage.md) - Complex patterns and techniques
 - [Best Practices](./docs/best-practices.md) - Guidelines for clean, efficient code

@@ -64,6 +64,92 @@ text.setValue('world');
 console.log(combined.value); // [2, 'world']
 ```
 
+## Higher-order Stream Operators
+
+### switchMap
+Projects each value to an inner stream, cancelling previous projections when a new value arrives. Perfect for scenarios where only the latest value matters, like search autocomplete.
+
+```typescript
+const searchTerm = reflex({ initialValue: '' });
+const searchResults = switchMap(searchTerm, async term => {
+  const results = await fetchSearchResults(term);
+  return results;
+}); // Automatically cancels pending requests when new term arrives
+
+// Also works with reflex values
+const userId = reflex({ initialValue: 1 });
+const userProfile = switchMap(userId, id => {
+  const profile = reflex({ initialValue: null });
+  fetchUserProfile(id).then(data => profile.setValue(data));
+  return profile;
+}); // Switches to new profile stream when userId changes
+```
+
+### mergeMap
+Projects each value to an inner stream, maintaining all active projections concurrently. Useful for parallel operations that should all complete.
+
+```typescript
+const fileIds = reflex({ initialValue: ['1', '2', '3'] });
+const downloads = mergeMap(fileIds, async ids => {
+  const results = await Promise.all(
+    ids.map(id => downloadFile(id))
+  );
+  return results;
+}); // All downloads proceed in parallel
+
+// Also works with reflex values
+const userIds = reflex({ initialValue: [1, 2] });
+const userActivities = mergeMap(userIds, ids => {
+  const activities = reflex({ initialValue: [] });
+  ids.forEach(id => {
+    subscribeToUserActivity(id, data => {
+      activities.setValue([...activities.value, data]);
+    });
+  });
+  return activities;
+}); // Tracks activities from all users simultaneously
+```
+
+### concatMap
+Projects each value to an inner stream, processing projections in sequence. Important for operations that must happen in order. Uses an internal queue to ensure operations complete in sequence.
+
+```typescript
+const uploadQueue = reflex({ initialValue: [] });
+const uploads = concatMap(uploadQueue, async files => {
+  for (const file of files) {
+    await uploadFile(file);
+  }
+  return 'Upload complete';
+}); // Files upload one after another
+
+// Also works with reflex values
+const animations = reflex({ initialValue: ['fade', 'slide'] });
+const sequence = concatMap(animations, type => {
+  const progress = reflex({ initialValue: 0 });
+  animate(type, value => progress.setValue(value));
+  return progress;
+}); // Animations play in sequence
+```
+
+#### Important Notes for Higher-order Operators
+
+1. **Initial Values**: All higher-order operators process the initial value of the source reflex immediately. The projected value (whether Promise or Reflex) becomes the initial value of the resulting reflex.
+
+2. **Timing Considerations**: 
+   - `switchMap` cancels previous operations immediately when a new value arrives
+   - `mergeMap` allows all operations to complete in parallel
+   - `concatMap` queues operations and processes them in sequence, ensuring order is maintained
+
+3. **Testing**: When testing these operators with async operations or reflex values:
+   - Use appropriate timeouts to account for async processing
+   - Consider using small delays (e.g., 50ms) for testing sequential operations
+   - Remember that `concatMap` may need additional time to process its queue
+
+4. **Memory Management**: 
+   - `switchMap` automatically cleans up previous subscriptions
+   - `mergeMap` maintains all active subscriptions until they complete
+   - `concatMap` manages an internal queue and cleans up each subscription after completion
+
 ## Accumulation Operators
 
 ### scan
@@ -130,4 +216,9 @@ const result = map<number, string>(source, x => x.toString());
 ```typescript
 const mousePosition = reflex({ initialValue: { x: 0, y: 0 } });
 const smoothPosition = debounce(mousePosition, 16); // ~60fps
-``` 
+```
+
+5. **Choosing the Right Higher-order Operator**:
+   - Use `switchMap` when you only care about the latest value (e.g., search, latest user data)
+   - Use `mergeMap` when all operations should complete (e.g., parallel uploads)
+   - Use `concatMap` when order matters (e.g., sequential animations) 

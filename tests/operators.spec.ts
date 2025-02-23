@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { reflex } from "../src";
-import { map, filter, merge, combine, scan, debounce } from "../src/operators";
+import { map, filter, merge, combine, scan, debounce, switchMap, mergeMap, concatMap } from "../src/operators";
 
 describe("Operators", () => {
   describe("map", () => {
@@ -134,6 +134,172 @@ describe("Operators", () => {
         expect(debounced.value).to.equal(3); // Should have updated to 3
         done();
       }, 100);
+    });
+  });
+});
+
+describe("Higher-order Stream Operators", () => {
+  describe("switchMap", () => {
+    it("should switch to new inner stream, cancelling previous", (done) => {
+      const source = reflex({ initialValue: 1 });
+      const delays: { [key: number]: number } = { 1: 100, 2: 50 };
+      const results: number[] = [];
+
+      const mapped = switchMap(
+        source,
+        (value) =>
+          new Promise<number>((resolve) => {
+            setTimeout(() => resolve(value * 10), delays[value]);
+          }),
+      );
+
+      mapped.subscribe((value) => {
+        if (value !== undefined) {
+          results.push(value);
+        }
+      });
+
+      // First value will take 100ms
+      source.setValue(2); // This value will take 50ms and should arrive first
+
+      setTimeout(() => {
+        expect(results).to.deep.equal([20]); // Only the second result should arrive
+        done();
+      }, 150);
+    });
+
+    it("should handle reflex sources", () => {
+      const source = reflex({ initialValue: "a" });
+      const innerSource = reflex({ initialValue: 1 });
+      const results: number[] = [];
+
+      const mapped = switchMap(source, () => innerSource);
+      mapped.subscribe((value) => {
+        if (value !== undefined) {
+          results.push(value);
+        }
+      });
+
+      expect(results).to.deep.equal([1]); // Initial value
+
+      innerSource.setValue(2);
+      expect(results).to.deep.equal([1, 2]);
+
+      source.setValue("b"); // Should restart subscription but value hasn't changed
+      expect(results).to.deep.equal([1, 2]);
+
+      innerSource.setValue(3);
+      expect(results).to.deep.equal([1, 2, 3]);
+    });
+  });
+
+  describe("mergeMap", () => {
+    it("should merge all inner streams", (done) => {
+      const source = reflex({ initialValue: 1 });
+      const delays: { [key: number]: number } = { 1: 100, 2: 50 };
+      const results: number[] = [];
+
+      const mapped = mergeMap(
+        source,
+        (value) =>
+          new Promise<number>((resolve) => {
+            setTimeout(() => resolve(value * 10), delays[value]);
+          }),
+      );
+
+      mapped.subscribe((value) => {
+        if (value !== undefined) {
+          results.push(value);
+        }
+      });
+
+      // First value will take 100ms
+      source.setValue(2); // This value will take 50ms
+
+      setTimeout(() => {
+        expect(results).to.deep.equal([20, 10]); // Both results should arrive
+        done();
+      }, 150);
+    });
+
+    it("should handle reflex sources", () => {
+      const source = reflex({ initialValue: "a" });
+      const innerSourceA = reflex({ initialValue: 1 });
+      const innerSourceB = reflex({ initialValue: 10 });
+      const results: number[] = [];
+
+      const mapped = mergeMap(source, (value) => (value === "a" ? innerSourceA : innerSourceB));
+      mapped.subscribe((value) => {
+        if (value !== undefined) {
+          results.push(value);
+        }
+      });
+
+      expect(results).to.deep.equal([1]); // Initial value
+
+      innerSourceA.setValue(2);
+      expect(results).to.deep.equal([1, 2]);
+
+      source.setValue("b");
+      expect(results).to.deep.equal([1, 2, 10]);
+
+      innerSourceB.setValue(20);
+      expect(results).to.deep.equal([1, 2, 10, 20]);
+    });
+  });
+
+  describe("concatMap", () => {
+    it("should process inner streams in sequence", (done) => {
+      const source = reflex({ initialValue: 1 });
+      const delays: { [key: number]: number } = { 1: 50, 2: 25 };
+      const results: number[] = [];
+
+      const mapped = concatMap(
+        source,
+        (value) =>
+          new Promise<number>((resolve) => {
+            setTimeout(() => resolve(value * 10), delays[value]);
+          }),
+      );
+
+      mapped.subscribe((value) => {
+        if (value !== undefined) {
+          results.push(value);
+        }
+      });
+
+      // First value will take 50ms
+      source.setValue(2); // This value will take 25ms but should wait for first
+
+      setTimeout(() => {
+        expect(results).to.deep.equal([10, 20]); // Results should arrive in order
+        done();
+      }, 150); // Increased timeout to ensure both operations complete
+    });
+
+    it("should handle reflex sources in sequence", (done) => {
+      const source = reflex({ initialValue: "a" });
+      const innerSourceA = reflex({ initialValue: 1 });
+      const innerSourceB = reflex({ initialValue: 10 });
+      const results: number[] = [];
+
+      const mapped = concatMap(source, (value) => (value === "a" ? innerSourceA : innerSourceB));
+      mapped.subscribe((value) => {
+        if (value !== undefined) {
+          results.push(value);
+        }
+      });
+
+      expect(results).to.deep.equal([1]); // Initial value
+
+      innerSourceA.setValue(2);
+      source.setValue("b");
+
+      // Give time for the sequence to process
+      setTimeout(() => {
+        expect(results).to.deep.equal([1, 2, 10]);
+        done();
+      }, 50);
     });
   });
 });

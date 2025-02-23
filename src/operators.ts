@@ -136,3 +136,172 @@ export function debounce<T>(source: Reflex<T>, delayMs: number): Reflex<T> {
 
   return debounced;
 }
+
+/**
+ * Projects each value from the source to an inner reflex, cancelling previous projections
+ * when a new value arrives. Like map, but for async/reflex operations where only the latest matters.
+ * @param source The source reflex
+ * @param project Function that returns a reflex or promise for each source value
+ */
+export function switchMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex<R> | Promise<R>): Reflex<R> {
+  const result = reflex<R>({
+    initialValue: undefined as unknown as R,
+  });
+
+  let currentProjection: symbol | null = null;
+
+  // Start with initial value
+  const initialProjection = Symbol();
+  currentProjection = initialProjection;
+  const initialProjected = project(source.value);
+
+  if (initialProjected instanceof Promise) {
+    initialProjected.then((value) => {
+      if (currentProjection === initialProjection) {
+        result.setValue(value);
+      }
+    });
+  } else {
+    result.setValue(initialProjected.value);
+    initialProjected.subscribe((value) => {
+      if (currentProjection === initialProjection) {
+        result.setValue(value);
+      }
+    });
+  }
+
+  source.subscribe(async (value) => {
+    const thisProjection = Symbol();
+    currentProjection = thisProjection;
+
+    try {
+      const projected = project(value);
+
+      if (projected instanceof Promise) {
+        const resolvedValue = await projected;
+        if (currentProjection === thisProjection) {
+          result.setValue(resolvedValue);
+        }
+      } else {
+        if (currentProjection === thisProjection) {
+          result.setValue(projected.value);
+          projected.subscribe((newValue) => {
+            if (currentProjection === thisProjection) {
+              result.setValue(newValue);
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error("[Reflex SwitchMap Error]", error);
+      throw error;
+    }
+  });
+
+  return result;
+}
+
+/**
+ * Projects each value from the source to an inner reflex, maintaining all active projections
+ * concurrently. Like map, but for async/reflex operations that should run in parallel.
+ * @param source The source reflex
+ * @param project Function that returns a reflex or promise for each source value
+ */
+export function mergeMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex<R> | Promise<R>): Reflex<R> {
+  const result = reflex<R>({
+    initialValue: undefined as unknown as R,
+  });
+
+  // Start with initial value
+  const initialProjected = project(source.value);
+  if (initialProjected instanceof Promise) {
+    initialProjected.then((value) => result.setValue(value));
+  } else {
+    result.setValue(initialProjected.value);
+    initialProjected.subscribe((newValue) => {
+      result.setValue(newValue);
+    });
+  }
+
+  source.subscribe(async (value) => {
+    try {
+      const projected = project(value);
+
+      if (projected instanceof Promise) {
+        const resolvedValue = await projected;
+        result.setValue(resolvedValue);
+      } else {
+        result.setValue(projected.value);
+        projected.subscribe((newValue) => {
+          result.setValue(newValue);
+        });
+      }
+    } catch (error) {
+      console.error("[Reflex MergeMap Error]", error);
+      throw error;
+    }
+  });
+
+  return result;
+}
+
+/**
+ * Projects each value from the source to an inner reflex, processing projections in sequence.
+ * Like map, but for async/reflex operations that must complete in order.
+ * @param source The source reflex
+ * @param project Function that returns a reflex or promise for each source value
+ */
+export function concatMap<T, R>(source: Reflex<T>, project: (value: T) => Reflex<R> | Promise<R>): Reflex<R> {
+  const result = reflex<R>({
+    initialValue: undefined as unknown as R,
+  });
+
+  const queue: T[] = [];
+  let isProcessing = false;
+
+  const processQueue = async () => {
+    if (isProcessing || queue.length === 0) return;
+
+    isProcessing = true;
+    const value = queue[0]; // Don't shift yet
+
+    try {
+      const projected = project(value);
+
+      if (projected instanceof Promise) {
+        const resolvedValue = await projected;
+        result.setValue(resolvedValue);
+        queue.shift(); // Remove after successful processing
+        isProcessing = false;
+        processQueue();
+      } else {
+        result.setValue(projected.value);
+        const unsubscribe = projected.subscribe((newValue) => {
+          result.setValue(newValue);
+        });
+        // Wait a tick to allow synchronous emissions
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        unsubscribe();
+        queue.shift(); // Remove after successful processing
+        isProcessing = false;
+        processQueue();
+      }
+    } catch (error) {
+      console.error("[Reflex ConcatMap Error]", error);
+      queue.shift(); // Remove on error
+      isProcessing = false;
+      processQueue();
+    }
+  };
+
+  // Start with initial value
+  queue.push(source.value);
+  processQueue();
+
+  source.subscribe((value) => {
+    queue.push(value);
+    processQueue();
+  });
+
+  return result;
+}

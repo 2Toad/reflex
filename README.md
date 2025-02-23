@@ -4,134 +4,82 @@
 [![Downloads](https://img.shields.io/npm/dm/@2toad/reflex.svg)](https://www.npmjs.com/package/@2toad/reflex)
 [![Build status](https://github.com/2toad/reflex/actions/workflows/ci.yml/badge.svg)](https://github.com/2Toad/reflex/actions/workflows/nodejs.yml)
 
-A lightweight, framework-agnostic reactive state management system with zero dependencies.
+A simple yet powerful way to manage state in any JavaScript environment. Whether you're building browser applications, Node.js services, or CLI tools, Reflex helps you handle your data elegantly. Works with any framework (React, Vue, Angular) or vanilla JavaScript.
 
-## Features
+## Quick Start
 
-- 🪶 **Lightweight** - Zero dependencies, minimal implementation
-- 🎯 **Framework Agnostic** - Works with any JavaScript framework or vanilla JS
-- 🧮 **Computed Values** - Derive state from other reactive values
-- 🔄 **Operators** - Essential reactive operators (map, filter, merge, combine, scan, debounce)
-- 🌊 **Backpressure** - Advanced flow control operators with pause/resume capabilities (buffer, sample, throttle)
-- 🔄 **Async Support** - First-class support for async operations and middleware
-- 🧹 **Automatic Cleanup** - Prevents memory leaks
-- ⚡ **Efficient** - Only updates when values actually change
-- 🔍 **Deep Reactivity** - Track changes in nested objects and arrays
-- 🛡️ **Safe** - Protection against recursive updates and error propagation
-- 🎛️ **Middleware** - Transform values with sync or async middleware
-- 🐛 **Debug Mode** - Built-in debugging capabilities
-
-## Getting Started
-
-Install package
-
-```Shell
+1. Install the package:
+```bash
 npm i @2toad/reflex
 ```
 
-## Usage
-
+2. Create and use a reactive value:
 ```typescript
 import { reflex } from '@2toad/reflex';
-// or
-const { reflex } = require('@2toad/reflex');
-```
 
-```typescript
 // Create a reactive value
-const count = reflex({ initialValue: 0 });
+const counter = reflex({ initialValue: 0 });
 
-// Subscribe to changes
-const unsubscribe = count.subscribe(value => {
-  console.log('Count changed:', value);
-}); // Logs: Count changed: 0 (immediate call with current value)
+// Listen for changes
+counter.subscribe(value => {
+  console.log('Counter is now:', value);
+});
 
 // Update the value
-count.setValue(1); // Logs: Count changed: 1
-
-// Cleanup when done
-unsubscribe();
+counter.setValue(1);
 ```
 
-## API
+## Key Features
 
-### Methods
+- 🪶 **Simple to Use** - Start managing state in minutes
+- 🎯 **Works Everywhere** - Use with any JavaScript framework or vanilla JS
+- ⚡ **Fast & Efficient** - Only updates when values actually change
+- 🧮 **Smart Calculations** - Compute values based on other values automatically
+- 🔄 **Async Ready** - Built-in support for async operations
+- 🛡️ **Safe & Reliable** - Prevents common pitfalls and memory leaks
 
-#### reflex<T>(options: ReflexOptions<T>): Reflex<T>
-- Creates a reactive value with subscription capabilities
-- Supports custom equality functions for complex objects
-- Optional middleware for value transformation
-- Debug mode for detailed logging
-- Returns a Reactive object with sync and async methods
+## Common Use Cases
 
+### Basic Value Management
 ```typescript
-const counter = reflex({ initialValue: 0 });
-const user = reflex({
-  initialValue: { name: 'John' },
-  equals: (prev, next) => prev.name === next.name
-});
-
-const counter = reflex({ 
-  initialValue: 0,
-  equals: (prev, next) => prev === next,
-  debug: true,
-  middleware: [
-    value => Math.max(0, value), // Keep value non-negative
-    async value => validate(value) // Async validation
-  ]
-});
+const username = reflex({ initialValue: '' });
+username.subscribe(name => updateUI(name));
 ```
 
-#### deepReflex<T extends object>(options: DeepReflexOptions<T>): Reflex<T>
-- Creates a deeply reactive value that automatically tracks nested changes
-- Supports objects and arrays at any depth
-- Provides granular property change tracking
-- Supports both sync and async operations
-- Returns a DeepReactive object with deep reactivity features
-
+### Computed Values
 ```typescript
-const game = deepReflex({
+const price = reflex({ initialValue: 10 });
+const quantity = reflex({ initialValue: 2 });
+const total = computed([price, quantity], ([p, q]) => p * q);
+```
+
+### Complex Objects
+```typescript
+const user = deepReflex({
   initialValue: {
-    player: {
-      name: 'Player1',
-      stats: { health: 100 }
-    }
-  },
-  onPropertyChange: (path, value) => {
-    console.log(`Changed ${path.join('.')} to ${value}`);
+    name: 'John',
+    preferences: { theme: 'dark' }
   }
 });
 ```
 
-#### computed<TDeps, TResult>(dependencies: TDeps[], compute: (values: TDeps) => TResult | Promise<TResult>): Reflex<TResult>
-- Creates a read-only reactive value derived from other reactive values
-- Supports both sync and async computations
-- Automatically updates when dependencies change
-- Efficient: only recomputes when dependency values actually change
+## Want to learn more?
+Start here to learn the basics and get a solid foundation:
 
-```typescript
-const width = reflex({ initialValue: 5 });
-const height = reflex({ initialValue: 10 });
-const area = computed([width, height], ([w, h]) => w * h);
+- [Features Guide](./docs/features.md) - Core features and basic usage
+- [Advanced Usage](./docs/advanced-usage.md) - Complex patterns and techniques
+- [Best Practices](./docs/best-practices.md) - Guidelines for clean, efficient code
+- [Performance Tips](./docs/performance.md) - Optimization strategies
+- [API Reference](./docs/api-reference.md) - Complete API documentation
 
-// Async computed
-const userProfile = computed([userId], async ([id]) => {
-  const data = await fetchUserProfile(id);
-  return processProfileData(data);
-});
-```
+Detailed guides for specific features:
 
-## Further Reading
+- [Backpressure Handling](./docs/backpressure.md) - Managing high-frequency updates
+- [Batch Operations](./docs/batch-operations.md) - Efficient bulk updates
+- [Computed Values](./docs/computed-values.md) - Deriving state
+- [Deep Reactivity](./docs/deep-reactivity.md) - Nested object reactivity
+- [Operators](./docs/operators.md) - Transform and combine values
 
-For more detailed information about specific features, please refer to the following documentation:
+## Contributing
 
-- [Deep Reactivity](./docs/deep-reactivity.md)
-- [Computed Values](./docs/computed-values.md)
-- [Batch Operations](./docs/batch-operations.md)
-- [Memory Management](./docs/memory-management.md)
-- [Operators](./docs/operators.md)
-- [Backpressure Operators](./docs/backpressure.md)
-
-## Contributing 🤝
-
-Want to contribute to the Reflex project? Fantastic! Please read our [Contributing Guidelines](./docs/contribute.md) to get started. 
+We welcome contributions! See our [Contributing Guide](./docs/contribute.md) to get started. 

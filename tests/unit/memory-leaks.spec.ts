@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { reflex, computed, deepReflex } from "../src";
+import { reflex, computed, deepReflex } from "../../src";
 
 describe("Memory Leaks", () => {
   it("should cleanup subscriptions when unsubscribed", () => {

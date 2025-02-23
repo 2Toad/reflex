@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { deepReflex, PropertyPath, PropertyValue } from "../src";
+import { deepReflex, PropertyPath, PropertyValue } from "../../src";
 
 describe("Deep Reflex", () => {
   it("should create a deep reactive value with initial value", () => {

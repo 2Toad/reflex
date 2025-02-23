@@ -30,14 +30,17 @@
     "build:types": "tsc -p tsconfig.types.json",
     "local": "npm run clean && nodemon src/index.ts",
     "local:pack": "npm run build && npm pack",
-    "test": "mocha -r ts-node/register tests/**/*.spec.ts",
-    "test:watch": "mocha -r ts-node/register --watch --watch-files tests --watch-extensions ts 'tests/**/*.spec.ts'",
+    "test": "mocha -r ts-node/register tests/unit/*.spec.ts",
+    "test:watch": "mocha -r ts-node/register --watch --watch-files tests --watch-extensions ts 'tests/unit/*.spec.ts'",
     "test:package": "./test-package.sh",
     "lint": "eslint . --cache",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
     "prepublishOnly": "npm run lint && npm test && npm run build",
-    "postinstall": "husky"
+    "postinstall": "husky",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug"
   },
   "repository": {
     "type": "git",
@@ -60,6 +63,7 @@
   ],
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@playwright/test": "^1.50.1",
     "@types/chai": "^5.0.1",
     "@types/eslint__js": "^8.42.3",
     "@types/eslint-config-prettier": "^6.11.3",

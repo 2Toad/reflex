@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { reflex } from "../src";
+import { reflex } from "../../src";
 
 describe("Middleware", () => {
   it("should apply middleware to value updates", () => {

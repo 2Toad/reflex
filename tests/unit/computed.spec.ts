@@ -1,6 +1,6 @@
 import { expect } from "chai";
-import { reflex, computed } from "../src";
-import { COMPUTED_ERRORS } from "../src/types";
+import { reflex, computed } from "../../src";
+import { COMPUTED_ERRORS } from "../../src/types";
 
 describe("Computed", () => {
   it("should compute initial value from dependencies", (done) => {

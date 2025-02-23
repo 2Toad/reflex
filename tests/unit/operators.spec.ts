@@ -1,6 +1,6 @@
 import { expect } from "chai";
-import { reflex } from "../src";
-import { map, filter, merge, combine, scan, debounce, switchMap, mergeMap, concatMap, catchError } from "../src/operators";
+import { reflex } from "../../src";
+import { map, filter, merge, combine, scan, debounce, switchMap, mergeMap, concatMap, catchError } from "../../src/operators";
 
 describe("Operators", () => {
   describe("map", () => {

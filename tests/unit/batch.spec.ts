@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { reflex, deepReflex, PropertyPath, PropertyValue } from "../src";
+import { reflex, deepReflex, PropertyPath, PropertyValue } from "../../src";
 
 describe("Batch Updates", () => {
   describe("Reflex", () => {

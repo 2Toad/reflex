@@ -1,7 +1,7 @@
 import { expect } from "chai";
-import { reflex } from "../src";
-import { withBackpressure, buffer, sample, throttle } from "../src/backpressure";
-import { BackpressureStrategy } from "../src/types";
+import { reflex } from "../../src";
+import { withBackpressure, buffer, sample, throttle } from "../../src/backpressure";
+import { BackpressureStrategy } from "../../src/types";
 
 describe("Backpressure Operators", () => {
   let cleanup: Array<() => void>;

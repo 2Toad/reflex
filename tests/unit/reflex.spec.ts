@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { reflex } from "../src";
+import { reflex } from "../../src";
 
 describe("Reflex", () => {
   it("should create a reactive value with initial value", () => {

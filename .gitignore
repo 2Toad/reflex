@@ -16,6 +16,10 @@
 .DS_Store
 Thumbs.db
 
-# Test Files
+# Playwright Test Files
+playwright-report
+test-results
+
+# Package Test Files
 test-reflex
 *.tgz
